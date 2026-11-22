@@ -6,7 +6,7 @@ This document shows how the five chatbots work twice over: first as the user exp
 
 ## 1. Functional workflows
 
-From the user's side every level starts the same way, with a question or a goal, and each level adds steps before the answer arrives.
+From the user's side every level starts the same way: the same five topics, or a typed question or goal. Each level adds steps before the answer arrives, and every answer ends with follow-up buttons and Main menu (fixed in 01, suggested by Claude in 02 to 05, written in the same call at no extra cost).
 
 ![Functional workflows: user view of the five levels](images/workflow-functional.png)
 
@@ -15,7 +15,7 @@ The highlighted box is what the user gets back. What changes from level to level
 | Level | User does | User sees | User can trust it for |
 | --- | --- | --- | --- |
 | 01 Basic | Clicks a topic or asks a known question | A fixed answer with buttons for the next questions, or the main menu if nothing matches | Exact, approved wording |
-| 02 Generative AI | Asks anything in their own words | A new written answer | Drafting and explaining; not company facts |
+| 02 Generative AI | Picks a topic or asks anything in their own words | A new written answer, three suggested follow-up questions and Main menu | Drafting and explaining; not company facts |
 | 03 RAG | Asks about company policy or procedure | An answer plus the source file names | Answers grounded in the documents given |
 | 04 AI Automation | Asks for a known task | A summary plus the tools that ran | Defined tasks with predictable steps |
 | 05 Agentic AI | States a goal | The plan, the tools that ran and the result | Multi-step goals, with a person approving any real action |
@@ -63,13 +63,14 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 
 ## 5. Interfaces and data
 
-The page talks to ten small API endpoints, and two SQLite tables hold all conversations.
+The page talks to eleven small API endpoints, and two SQLite tables hold all conversations.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /` | Serves the web page |
 | `GET /api/health` | Status badge: provider, model, whether a key is configured |
 | `GET /api/basic/menu` | Main menu topics for the Basic bot |
+| `GET /api/menu?bot=<mode>` | The shared topic menu: in Basic each topic opens its menu branch; in 02 to 05 each topic sends the same question |
 | `GET /api/settings` | Whether a key is set (masked hint only), workspace ID, model |
 | `POST /api/settings` | Saves key, workspace ID and model to `.env`; validates their format |
 | `POST /api/settings/test` | Live, free connection test (token count) with a plain-English result |

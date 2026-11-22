@@ -16,6 +16,8 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 | 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
 | 05 | Agentic AI | Claude plans 2 to 4 steps, picks allowed demo tools, the app runs them, Claude explains and verifies | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
 
+**Same workflow everywhere:** every bot opens with the same five topics. In 01 a topic opens its fixed menu; in 02 to 05 it asks the same question, so you can compare answers directly. Each answer ends with follow-up buttons and **Main menu**: fixed in 01, suggested by Claude in 02 to 05.
+
 Rule of thumb: use the simplest level that fully solves the problem (decision guide in the charter, section 6.4).
 
 ## 2. Files and what they do
@@ -70,7 +72,7 @@ Use Haiku for long practice sessions to keep costs low, and Sonnet or Opus for d
 
 ## 5. Demo script
 
-Ask the same question in all five bots, in order, and point out what changes.
+Click the same topic in all five bots, in order, and point out what changes. The questions below can also be typed.
 
 | Question | 01 Basic | 02 Generative AI | 03 RAG | 04 AI Automation | 05 Agentic AI |
 | --- | --- | --- | --- | --- | --- |

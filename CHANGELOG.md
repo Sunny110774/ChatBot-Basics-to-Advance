@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-11-22
+
+One workflow across all five bots.
+
+- **Shared topic menu:** every bot opens with the same five topics (Banking hours, Branches and ATMs, Cards, Leave policy, Write an email). In 01 a topic opens its fixed menu branch; in 02 to 05 it sends the same question, so answers can be compared like for like.
+- **Follow-up buttons in every bot:** levels 02 to 05 now end each answer with three follow-up questions suggested by Claude (in the same call, no extra cost) plus Main menu, matching the guided flow of level 01. Follow-ups are saved with the conversation.
+- **Formatted answers:** Claude's Markdown (bold, lists, headings, dividers) now displays properly instead of raw symbols. Text is escaped first, so nothing in an answer can run as code.
+- New endpoint `GET /api/menu?bot=<mode>`. Tests: 19 offline tests.
+
 ## 0.4.1 - 2026-11-22
 
 - Fixed: requests failed with "`temperature` is deprecated for this model" on current Claude models. The app no longer sends a temperature setting.

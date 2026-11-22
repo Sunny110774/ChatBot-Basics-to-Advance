@@ -49,6 +49,7 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 - **05 Agentic AI:** Claude writes a short plan and picks tools; the app runs only allow-listed tools; Claude explains the results and verifies them.
 - **History:** every conversation is stored per mode in SQLite and can be reopened, including what each level did.
 - **Shared company:** all five bots use the same fictional company, Bluewater Bank: the Basic menu, the five knowledge files and the demo tools state the same facts, so answers can be compared like for like.
+- **Same workflow in every bot:** all five open with the same five topics (Banking hours, Branches and ATMs, Cards, Leave policy, Write an email), and each topic asks the same question in every bot, so levels can be compared like for like. Every answer ends with follow-up buttons: fixed ones in level 01, three suggested by Claude in levels 02 to 05, plus Main menu.
 - **Transparency:** under every AI answer, a "What this level did" panel shows the sources used, tools run (with their mock results), the plan, blocked tools and the final check.
 - **Honest errors:** if Claude cannot be reached, the chat says why in plain words (invalid key, missing workspace ID, no credit, no internet) and how to fix it, with an Open Settings button.
 

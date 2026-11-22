@@ -277,6 +277,32 @@ def basic(q):
             basic_options("menu"))
 
 
+# ---------- shared topic menu: the same five topics and questions in every bot ----------
+# Each topic sends the same question to bots 02-05, so their answers can be compared like for like.
+# In bot 01 the topic opens its fixed menu branch instead.
+TOPICS = [
+    {"label": "Banking hours", "question": "What are Bluewater Bank's banking hours and the same-day payment cut-off?"},
+    {"label": "Branches and ATMs", "question": "How do I find the nearest branch, and what is the ATM withdrawal limit?"},
+    {"label": "Cards", "question": "I lost my card. What should I do?"},
+    {"label": "Leave policy", "question": "Can I take two days of leave next week?"},
+    {"label": "Write an email", "question": "Draft an email to my manager asking for two days' leave next week."},
+]
+MENU_INTRO = "Choose a topic. Each topic asks the same question in every bot, so you can compare what each level adds."
+FOLLOW_UPS = ("\n\nAfter your answer, add one final line in exactly this format: "
+              "FOLLOW-UPS: <question 1> | <question 2> | <question 3>. "
+              "Give three short follow-up questions (at most 12 words each) that the user might ask next about Bluewater Bank, "
+              "written as the user would ask them, and suitable for this assistant to handle.")
+
+
+def split_follow_ups(text):
+    """Remove the FOLLOW-UPS line Claude adds and return (answer, up to 3 follow-up questions)."""
+    m = re.search(r"(?:\A|\n)[ \t]*\**[ \t]*FOLLOW[- ]?UPS?[ \t]*\**[ \t]*:\s*(.+?)\s*$", text, re.I | re.S)
+    if not m:
+        return text.strip(), []
+    qs = [q.strip(" -*•\"'") for q in re.split(r"\s*\|\s*|\n+", m.group(1)) if q.strip(" -*•\"'")]
+    return text[:m.start()].rstrip(), qs[:3]
+
+
 # ---------- 03 RAG: keyword retrieval over knowledge/*.md ----------
 STOPWORDS = set("""a an and are as at be been but by can could do does for from has have how i if in is it its
 me my of on or our please should so than that the their them then there these they this to us was we were what
@@ -409,6 +435,14 @@ def basic_menu():
     return {"answer": BASIC_TREE["menu"]["answer"], "options": basic_options("menu")}
 
 
+@app.get("/api/menu")
+def menu(bot: str = "basic"):
+    """Topic menu for any bot. Basic sends the topic label (opens its menu branch); AI bots send the shared question."""
+    if bot == "basic":
+        return {"answer": BASIC_TREE["menu"]["answer"], "topics": [{"label": l, "send": l} for l in basic_options("menu") if l != "Main menu"]}
+    return {"answer": MENU_INTRO, "topics": [{"label": t["label"], "send": t["question"]} for t in TOPICS]}
+
+
 @app.get("/api/conversations")
 def conversations(bot: Optional[str] = None):
     with conn() as c:
@@ -467,7 +501,7 @@ def chat(b: ChatReq):
         answer = llm("You are the Generative AI demo assistant for Bluewater Bank, a fictional bank. "
                      "Answer helpfully from general knowledge only. You have no access to Bluewater Bank's documents, "
                      "systems or customer data, so never state its policies, balances or statuses as facts; "
-                     "say when an answer would need company information.", msgs)
+                     "say when an answer would need company information." + FOLLOW_UPS, msgs)
         meta["did"] = "Claude answered from your question and this chat only. No company documents, no tools."
 
     elif b.bot == "rag":
@@ -481,7 +515,8 @@ def chat(b: ChatReq):
         else:
             context = "\n\n".join("[Source: " + h["source"] + "]\n" + h["text"] for h in hits)
             answer = llm("You answer questions for Bluewater Bank (fictional) using ONLY the retrieved context below. "
-                         "If the context does not contain the answer, say so plainly. Cite the source file names in brackets. Context:\n" + context, msgs)
+                         "If the context does not contain the answer, say so plainly. Cite the source file names in brackets." + FOLLOW_UPS
+                         + " The follow-up questions must be answerable from Bluewater Bank's documents.\n\nContext:\n" + context, msgs)
             meta["did"] = f"Searched {files} knowledge files, picked the {len(hits)} best-matching passages, and told Claude to answer only from them."
 
     elif b.bot == "automation":
@@ -490,7 +525,8 @@ def chat(b: ChatReq):
             results = [{"tool": "search_knowledge", "result": tool("search_knowledge", {"query": b.message})}]
         meta["tools"] = results
         answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
-                     "Say clearly that the data is mock demo data and that nothing in a real system was changed. Tools:\n" + json.dumps(results), msgs)
+                     "Say clearly that the data is mock demo data and that nothing in a real system was changed." + FOLLOW_UPS
+                     + "\n\nTools:\n" + json.dumps(results), msgs)
         meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
 
     else:  # agentic
@@ -517,9 +553,12 @@ def chat(b: ChatReq):
         meta["skipped"] = skipped
         meta["verification"] = obj.get("verification", "")
         answer = llm("You are Bluewater Bank's Agentic AI demo. Explain the plan, what each tool returned and whether the goal is met, honestly. "
-                     "Say what still needs a human decision. No real-world action was taken; all data is mock. Plan and results:\n"
+                     "Say what still needs a human decision. No real-world action was taken; all data is mock." + FOLLOW_UPS + "\n\nPlan and results:\n"
                      + json.dumps({"plan": meta["plan"], "tools": observed, "verification": meta["verification"]}), msgs)
         meta["did"] = "Claude planned the steps and chose tools; the app ran only allow-listed tools; Claude then checked the results against the goal."
 
+    if b.bot != "basic":
+        answer, follow = split_follow_ups(answer)
+        meta["options"] = (follow + ["Main menu"]) if follow else ["Main menu"]
     save(b.conversation_id, "assistant", answer, meta)
     return {"answer": answer, "metadata": meta}

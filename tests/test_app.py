@@ -39,7 +39,7 @@ class FakeMessages:
             }
             text = "Here is the plan:\n```json\n" + json.dumps(plan) + "\n```"
         else:
-            text = "Fake Claude reply"
+            text = "Fake Claude reply" + ("\n\nFOLLOW-UPS: Next one? | Next two? | Next three?" if "FOLLOW-UPS" in kw["system"] else "")
         return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)])
 
 
@@ -106,7 +106,8 @@ def test_basic_menu_follow_ups(env):
 def test_generative_calls_claude(env):
     _, client, calls = env
     _, r = ask(client, "generative", "Draft an email")
-    assert r.json()["answer"] == "Fake Claude reply"
+    assert r.json()["answer"] == "Fake Claude reply"  # FOLLOW-UPS line removed from the answer
+    assert r.json()["metadata"]["options"] == ["Next one?", "Next two?", "Next three?", "Main menu"]
     assert len(calls) == 1
 
 
@@ -242,3 +243,31 @@ def test_what_this_level_did_is_saved_with_the_answer(env):
     assert r.json()["metadata"]["did"].startswith("Searched")
     msgs = client.get(f"/api/conversations/{cid}").json()["messages"]
     assert msgs[1]["meta"]["sources"][0]["source"] == "leave_policy.md"
+
+
+def test_same_topic_menu_in_every_bot(env):
+    _, client, _ = env
+    basic = client.get("/api/menu?bot=basic").json()
+    labels = [t["label"] for t in basic["topics"]]
+    assert labels == ["Banking hours", "Branches and ATMs", "Cards", "Leave policy", "Write an email"]
+    for bot in ["generative", "rag", "automation", "agentic"]:
+        m = client.get("/api/menu?bot=" + bot).json()
+        assert [t["label"] for t in m["topics"]] == labels  # same topics everywhere
+    sends = [t["send"] for t in client.get("/api/menu?bot=rag").json()["topics"]]
+    assert sends == [t["send"] for t in client.get("/api/menu?bot=agentic").json()["topics"]]  # same questions
+
+
+def test_follow_ups_saved_and_rag_refusal_offers_menu(env):
+    _, client, _ = env
+    cid, r = ask(client, "rag", "What is the leave policy?")
+    assert r.json()["metadata"]["options"][-1] == "Main menu"
+    assert client.get(f"/api/conversations/{cid}").json()["messages"][1]["meta"]["options"][0] == "Next one?"
+    _, r = ask(client, "rag", "What is the capital of France?")
+    assert r.json()["metadata"]["options"] == ["Main menu"]
+
+
+def test_split_follow_ups_formats(env):
+    app, _, _ = env
+    assert app.split_follow_ups("A\n\n**FOLLOW-UPS:** x? | y? | z? | w?") == ("A", ["x?", "y?", "z?"])
+    assert app.split_follow_ups("No list") == ("No list", [])
+    assert app.split_follow_ups("Use *care*\n\nFOLLOW-UPS: a? | b? | c?")[0] == "Use *care*"  # keeps closing asterisk
