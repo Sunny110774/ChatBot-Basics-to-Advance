@@ -1,0 +1,80 @@
+# PM004_06 Workflows: ChatBot - Basics to Advance
+
+22 Nov 2026 · Naveen Nigam
+
+This document shows how the five chatbots work twice over: first as the user experiences them (functional), then as the system processes them (technical). Every step matches the current code; anything planned is marked as backlog. Related: [Charter](PM004_01_Project_Charter.md), [Runbook](PM004_04_Runbook.md), [Executive Summary](PM004_05_Executive_Summary.md).
+
+## 1. Functional workflows
+
+From the user's side every level starts the same way, with a question or a goal, and each level adds steps before the answer arrives.
+
+![Functional workflows: user view of the five levels](images/workflow-functional.png)
+
+The highlighted box is what the user gets back. What changes from level to level is how much the bot does on the user's behalf, and how much it shows about how it got there.
+
+| Level | User does | User sees | User can trust it for |
+| --- | --- | --- | --- |
+| 01 Basic | Asks a known question | A fixed answer, or a clear "no rule" message | Exact, approved wording |
+| 02 Generative AI | Asks anything in their own words | A new written answer | Drafting and explaining; not company facts |
+| 03 RAG | Asks about company policy or procedure | An answer plus the source file names | Answers grounded in the documents given |
+| 04 AI Automation | Asks for a known task | A summary plus the tools that ran | Defined tasks with predictable steps |
+| 05 Agentic AI | States a goal | The plan, the tools that ran and the result | Multi-step goals, with a person approving any real action |
+
+## 2. Technical request flow
+
+Every message, whichever level it goes to, follows the same eight steps; only step 5 differs between levels.
+
+![Technical request flow: eight steps from browser to answer](images/workflow-request-flow.png)
+
+The question is saved before the mode runs, so a failed request never loses what the user typed. Step 5 is broken down per level in section 3.
+
+## 3. Technical workflow per level
+
+Step 5 runs different functions in `app.py` for each level. The number of Claude calls is the clearest measure of how much each level costs and how hard it is to test.
+
+![Technical workflow per level: functions and Claude calls](images/workflow-technical.png)
+
+| Level | Key functions | Claude calls per message | Backlog upgrade |
+| --- | --- | --- | --- |
+| 01 Basic | `basic()` | 0 | None needed |
+| 02 Generative AI | `history()`, `clean_messages()`, `llm()` | 1 | None needed |
+| 03 RAG | `retrieve()` (keyword overlap, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
+| 04 AI Automation | keyword rules, `tool()`, `llm()` to summarise | 1 | Claude native tool calling |
+| 05 Agentic AI | `llm()` for the plan, `parse_json()`, `ALLOWED_TOOLS` filter, `tool()`, `llm()` to explain and verify | 2 | Native tool calling in a loop, with a human approval step |
+
+## 4. Error and safety paths
+
+Every failure returns a clear message instead of a guess, and the safety rules are enforced in code and covered by tests.
+
+| Situation | What the system does | What the user sees | Tested |
+| --- | --- | --- | --- |
+| No API key configured | Stops before calling Claude (HTTP 503) | "Configure ANTHROPIC_API_KEY on the server" | Yes |
+| Key, workspace or rate-limit problem at Anthropic | Passes Anthropic's reason back (HTTP 502) | The actual reason, plus a workspace hint where relevant | Partly (connection error) |
+| No internet | Catches the connection error (HTTP 502) | "Could not reach Anthropic" | Yes |
+| A request failed, then the user sends again | Merges the two user turns so Claude still gets alternating turns | A normal answer | Yes |
+| RAG finds nothing relevant | Does not call Claude at all | "I won't invent a policy answer" | Yes |
+| Agent plans a tool that is not on the allow-list | Skips it; only allow-listed tools run | Only real demo tool results | Yes |
+| Agent plan is not valid JSON | Falls back to a safe plan with no tools | An explanation that no tools were run | No |
+| Conversation belongs to another bot | Rejects the message (HTTP 400) | Error message | No |
+| Empty message or unknown bot | Rejects the message (HTTP 400) | Error message | No |
+| Any demo tool | Returns mock data only; nothing is sent, submitted or booked | Results marked as demo or "not sent" | Yes |
+
+## 5. Interfaces and data
+
+The page talks to six small API endpoints, and two SQLite tables hold all conversations.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /` | Serves the web page |
+| `GET /api/health` | Status badge: provider, model, whether a key is configured |
+| `GET /api/conversations?bot=<mode>` | Lists saved conversations for one mode, newest first |
+| `POST /api/conversations` | Starts a new conversation for a mode |
+| `GET /api/conversations/{id}` | Reopens one conversation with all its messages |
+| `POST /api/chat` | Sends a message and returns the answer plus metadata (mode, sources, tools, plan) |
+
+| Table | Fields | Notes |
+| --- | --- | --- |
+| `conversations` | id, bot, title, created_at, updated_at | Title is the first 40 characters of the first question |
+| `messages` | id, conversation_id, role, content, created_at | Role is user or assistant; full history is sent to Claude on each turn |
+
+**Not stored:** the API key (kept in `.env` on the server), tool results and plans (returned with the answer but not saved).

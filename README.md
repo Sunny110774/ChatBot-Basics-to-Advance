@@ -89,9 +89,13 @@ run_windows.bat        One-click start on Windows
 
 ## Project documents
 
+Start with the executive summary; each document opens with its main point in one sentence.
+
 | Document | What it covers |
 | --- | --- |
+| [PM004_05 Executive Summary](docs/PM004_05_Executive_Summary.md) | One page: the problem, what was built, business cases for each level, how to choose, status, my role |
 | [PM004_01 Project Charter](docs/PM004_01_Project_Charter.md) | Problem, objectives, scope, the five levels with real-world examples, architecture, phases and gates, risks |
+| [PM004_06 Workflows](docs/PM004_06_Workflows.md) | Functional (user view) and technical workflows, error and safety paths, API and data |
 | [PM004_04 Runbook](docs/PM004_04_Runbook.md) | Setup, daily use, demo script, troubleshooting, extending safely |
 | [Changelog](CHANGELOG.md) | What changed and when |
 

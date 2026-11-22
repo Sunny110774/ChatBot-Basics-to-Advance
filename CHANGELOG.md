@@ -13,7 +13,7 @@ Moved from OpenAI to Anthropic Claude and prepared for GitHub.
 - `CHATBOT_DB` setting so tests use a temporary database.
 - Fixed: the welcome panel stayed above the first message of a new chat.
 - Fixed: message box font (invalid CSS shorthand).
-- Added: offline pytest suite for all five modes, GitHub Actions workflow, project charter, runbook and diagrams.
+- Added: offline pytest suite for all five modes, GitHub Actions workflow, project charter, executive summary, workflows, runbook and diagrams.
 
 ## 0.1.0
 
