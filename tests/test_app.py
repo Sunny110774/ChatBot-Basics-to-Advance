@@ -263,8 +263,9 @@ def test_same_topic_menu_in_every_bot(env):
     for bot in ["generative", "rag", "automation", "agentic"]:
         m = client.get("/api/menu?bot=" + bot).json()
         assert [t["label"] for t in m["topics"]] == labels  # same topics everywhere
-    sends = [t["send"] for t in client.get("/api/menu?bot=rag").json()["topics"]]
-    assert sends == [t["send"] for t in client.get("/api/menu?bot=agentic").json()["topics"]]  # same questions
+    qs = [t["questions"] for t in client.get("/api/menu?bot=rag").json()["topics"]]
+    assert qs == [t["questions"] for t in client.get("/api/menu?bot=agentic").json()["topics"]]  # same questions
+    assert all(2 <= len(q) <= 3 for q in qs)  # a topic opens a short list; nothing is sent until the user picks
 
 
 def test_follow_ups_saved_and_rag_refusal_offers_menu(env):

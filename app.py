@@ -278,16 +278,24 @@ def basic(q):
 
 
 # ---------- shared topic menu: the same five topics and questions in every bot ----------
-# Each topic sends the same question to bots 02-05, so their answers can be compared like for like.
-# In bot 01 the topic opens its fixed menu branch instead.
+# Clicking a topic shows its questions; the user picks one. The questions are the same in bots 02-05,
+# so their answers can be compared like for like. In bot 01 the topic opens its fixed menu branch instead.
 TOPICS = [
-    {"label": "Banking hours", "question": "What are Bluewater Bank's banking hours and the same-day payment cut-off?"},
-    {"label": "Branches and ATMs", "question": "How do I find the nearest branch, and what is the ATM withdrawal limit?"},
-    {"label": "Cards", "question": "I lost my card. What should I do?"},
-    {"label": "Leave policy", "question": "Can I take two days of leave next week?"},
-    {"label": "Write an email", "question": "Draft an email to my manager asking for two days' leave next week."},
+    {"label": "Banking hours", "questions": ["What are Bluewater Bank's banking hours?",
+                                             "What is the same-day payment cut-off?",
+                                             "Is online banking available at weekends?"]},
+    {"label": "Branches and ATMs", "questions": ["How do I find the nearest branch?",
+                                                 "What is the ATM withdrawal limit?"]},
+    {"label": "Cards", "questions": ["I lost my card. What should I do?",
+                                     "My card is not working. What can I check?",
+                                     "Can I share my card PIN or OTP with bank staff?"]},
+    {"label": "Leave policy", "questions": ["Can I take two days of leave next week?",
+                                            "What is my leave balance?",
+                                            "How much notice do I need to give for leave?"]},
+    {"label": "Write an email", "questions": ["Draft an email to my manager asking for two days' leave next week.",
+                                              "Draft an email asking for an update on payment PAY-1042."]},
 ]
-MENU_INTRO = "Choose a topic. Each topic asks the same question in every bot, so you can compare what each level adds."
+MENU_INTRO = "Choose a topic, then a question. Every bot offers the same questions, so you can compare what each level adds."
 FOLLOW_UPS = ("\n\nAfter your answer, add one final line in exactly this format: "
               "FOLLOW-UPS: <question 1> | <question 2> | <question 3>. "
               "Give three short follow-up questions (at most 12 words each) that the user might ask next about Bluewater Bank, "
@@ -521,10 +529,10 @@ def basic_menu():
 
 @app.get("/api/menu")
 def menu(bot: str = "basic"):
-    """Topic menu for any bot. Basic sends the topic label (opens its menu branch); AI bots send the shared question."""
+    """Topic menu for any bot. Basic sends the topic label (opens its menu branch); in AI bots a topic opens its list of shared questions."""
     if bot == "basic":
         return {"answer": BASIC_TREE["menu"]["answer"], "topics": [{"label": l, "send": l} for l in basic_options("menu") if l != "Main menu"]}
-    return {"answer": MENU_INTRO, "topics": [{"label": t["label"], "send": t["question"]} for t in TOPICS]}
+    return {"answer": MENU_INTRO, "topics": [{"label": t["label"], "questions": t["questions"]} for t in TOPICS]}
 
 
 @app.get("/api/conversations")

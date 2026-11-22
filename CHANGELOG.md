@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 - 2026-11-22
+- **Topics open a question list:** clicking a topic (for example **Cards**) in bots 02 to 05 now shows two or three questions to choose from, instead of sending a question on the user's behalf. Nothing is sent until the user picks. The questions are the same in every bot, so answers stay comparable.
+- Each question was checked to retrieve its matching knowledge passage for RAG.
+
 ## 0.6.1 - 2026-11-22
 - **Automation follow-ups stay on topic:** after blocking a card the buttons now offer "Order a replacement card" and "Raise a support ticket about my card", not unrelated tasks such as the leave balance. Leave leads to the email draft, payments to a support ticket.
 - **New mock task `order_replacement_card`:** the replacement card Claude used to mention is now a real (mock) step with its own button.
