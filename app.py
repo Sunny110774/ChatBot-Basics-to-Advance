@@ -123,16 +123,67 @@ def history(cid):
         return [dict(x) for x in c.execute("SELECT role,content FROM messages WHERE conversation_id=? ORDER BY id", (cid,)).fetchall()]
 
 
-# ---------- 01 Basic: fixed rules ----------
+# ---------- 01 Basic: fixed rules with a guided menu ----------
+# Each node: button label, fixed answer, follow-up options (node ids), keywords for typed questions.
+# Answers are demo content for a fictional bank and company, not real policies.
+BASIC_TREE = {
+    "menu": {"label": "Main menu", "answer": "Choose a topic below. This Basic bot only knows these fixed answers.",
+             "options": ["hours", "branches", "cards", "leave", "email"], "keywords": ["menu", "help", "start", "hi", "hello"]},
+    # top level
+    "hours": {"label": "Banking hours", "answer": "This demo bank is open Monday to Friday, 9 AM to 5 PM. This is an example rule, not a real bank schedule.",
+              "options": ["holidays", "cutoff", "menu"], "keywords": ["banking hours", "bank hours", "opening hours", "working hours", "open", "timing"]},
+    "branches": {"label": "Branches and ATMs", "answer": "The demo bank has a fixed list of branches and ATMs. Pick what you need below.",
+                 "options": ["nearest", "atm_limit", "menu"], "keywords": ["branch", "branches", "location", "locations", "atm"]},
+    "cards": {"label": "Cards", "answer": "I can help with common card questions. Pick one below.",
+              "options": ["block", "not_working", "menu"], "keywords": ["card", "cards"]},
+    "leave": {"label": "Leave policy", "answer": "Planned leave needs manager approval and should be requested 5 working days ahead (demo rule).",
+              "options": ["apply", "balance", "menu"], "keywords": ["leave policy", "leave", "vacation", "holiday leave", "time off"]},
+    "email": {"label": "Write an email", "answer": "I have fixed email templates. Choose one and fill in the [brackets] yourself.",
+              "options": ["leave_email", "status_email", "menu"], "keywords": ["email", "mail", "draft", "write"]},
+    # second level
+    "holidays": {"label": "Holiday schedule", "answer": "The demo bank is closed on weekends and national public holidays. Online banking stays available.",
+                 "options": ["cutoff", "menu"], "keywords": ["holiday schedule", "public holiday", "closed"]},
+    "cutoff": {"label": "Same-day payment cut-off", "answer": "Payments submitted before 2 PM on a working day are processed the same day; later ones go the next working day (demo rule).",
+               "options": ["hours", "menu"], "keywords": ["cut-off", "cutoff", "same day", "same-day"]},
+    "nearest": {"label": "Find nearest branch", "answer": "Use the branch locator on the demo bank's website or app and enter your PIN code. A Basic bot cannot look up your location.",
+                "options": ["atm_limit", "menu"], "keywords": ["nearest", "near me", "closest"]},
+    "atm_limit": {"label": "ATM withdrawal limit", "answer": "The demo daily ATM withdrawal limit is 25,000 per card. Limits on real cards vary by account.",
+                  "options": ["nearest", "menu"], "keywords": ["withdrawal limit", "atm limit", "cash limit"]},
+    "block": {"label": "Block my card", "answer": "Call the 24x7 helpline or use App > Cards > Block card. A Basic bot can only tell you how; blocking it for you is an action, which is level 04 AI Automation.",
+              "options": ["not_working", "menu"], "keywords": ["block", "lost", "stolen"]},
+    "not_working": {"label": "Card not working", "answer": "Check that the card is not expired, blocked or over its limit, and that the PIN is correct. If it still fails, contact support.",
+                    "options": ["block", "menu"], "keywords": ["not working", "declined", "failed", "card error"]},
+    "apply": {"label": "How do I apply?", "answer": "Apply in the HR portal: Leave > New request, choose dates and the leave type, then submit for manager approval (demo process).",
+              "options": ["balance", "leave_email", "menu"], "keywords": ["apply", "how do i apply", "request leave"]},
+    "balance": {"label": "My leave balance", "answer": "A Basic bot cannot see your balance: that needs a lookup in the HR system, which is what level 04 AI Automation adds.",
+                "options": ["apply", "menu"], "keywords": ["balance", "how many days", "remaining"]},
+    "leave_email": {"label": "Leave request email", "answer": "Subject: Leave request: [dates]\n\nHi [manager],\n\nI would like to take leave from [start date] to [end date] for [reason]. [Colleague] has agreed to cover urgent work, and my current tasks are up to date.\n\nCould you please approve?\n\nThanks,\n[Your name]",
+                    "options": ["status_email", "apply", "menu"], "keywords": ["leave email", "leave mail", "leave request email"]},
+    "status_email": {"label": "Status update email", "answer": "Subject: Status update: [project] ([date])\n\nHi [name],\n\nDone: [what was completed]\nNext: [what happens next]\nRisks or help needed: [any blockers]\n\nRegards,\n[Your name]",
+                     "options": ["leave_email", "menu"], "keywords": ["status email", "status update", "update email"]},
+}
+# Typed questions: check specific (second-level) topics before broad ones.
+BASIC_MATCH_ORDER = ["leave_email", "status_email", "holidays", "cutoff", "nearest", "atm_limit", "block", "not_working",
+                     "apply", "balance", "hours", "branches", "cards", "leave", "email", "menu"]
+
+
+def basic_options(node_id):
+    return [BASIC_TREE[o]["label"] for o in BASIC_TREE[node_id]["options"]]
+
+
 def basic(q):
-    s = q.lower()
-    if any(x in s for x in ["banking hours", "bank hours", "opening hours", "working hours"]):
-        return "Predefined answer: this demo bank is open Monday–Friday, 9 AM–5 PM. This is an example rule, not a real bank schedule."
-    if any(x in s for x in ["write an email", "draft an email", "leave email", "email to my manager"]):
-        return "Predefined email flow: please provide the purpose, dates/key details, and preferred tone."
-    if "leave policy" in s:
-        return "Predefined rule: planned leave needs approval. Ask HR for the actual policy and balance."
-    return "No matching rule is configured, so this Basic bot cannot answer that question. Try banking hours, leave policy, or starting an email flow."
+    """Return (answer, follow-up option labels). Buttons send their label; typed text is matched by keywords."""
+    s = q.lower().strip()
+    for nid, node in BASIC_TREE.items():
+        if s == node["label"].lower():
+            return node["answer"], basic_options(nid)
+    for nid in BASIC_MATCH_ORDER:
+        words = re.findall(r"[a-z0-9-]+", s)
+        for k in BASIC_TREE[nid]["keywords"]:
+            if (" " in k and k in s) or (" " not in k and k in words):
+                return BASIC_TREE[nid]["answer"], basic_options(nid)
+    return ("No matching rule is configured, so this Basic bot cannot answer that question. Choose one of the topics below.",
+            basic_options("menu"))
 
 
 # ---------- 03 RAG: keyword retrieval over knowledge/*.md ----------
@@ -186,6 +237,11 @@ def health():
     return {"status": "ok", "provider": "Anthropic", "model": MODEL, "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY"))}
 
 
+@app.get("/api/basic/menu")
+def basic_menu():
+    return {"answer": BASIC_TREE["menu"]["answer"], "options": basic_options("menu")}
+
+
 @app.get("/api/conversations")
 def conversations(bot: Optional[str] = None):
     with conn() as c:
@@ -235,7 +291,7 @@ def chat(b: ChatReq):
     meta = {"mode": b.bot, "sources": [], "tools": []}
 
     if b.bot == "basic":
-        answer = basic(b.message)
+        answer, meta["options"] = basic(b.message)
         meta["mode"] = "fixed_rules"
 
     elif b.bot == "generative":

@@ -10,7 +10,7 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 
 | # | Chatbot | What it does | Uses Claude | Try asking | Shown under the answer |
 | --- | --- | --- | --- | --- | --- |
-| 01 | Basic Chatbot | Matches keywords to fixed answers; anything else gets a fallback | No | "What are the banking hours?" | Mode: fixed_rules |
+| 01 | Basic Chatbot | Guided menu: pick a topic, then follow-up buttons; typed questions matched by keyword; anything else returns the main menu | No | Click **Cards**, then **Block my card** | Follow-up buttons, mode: fixed_rules |
 | 02 | Generative AI | Writes a free answer from the question alone | Yes | "Help me draft an email to my manager asking for 2 days' leave" | Mode |
 | 03 | RAG | Finds matching text in `knowledge/` and answers only from it, naming the file | Yes | "What is the leave policy?" | Sources, mode |
 | 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | Tools used, mode |
@@ -108,7 +108,7 @@ Results vary slightly between runs for modes 02 to 05.
 | To do this | Change | Note |
 | --- | --- | --- |
 | Teach the RAG bot your own content | Add a `.md` file to `knowledge/`; separate topics with a blank line | Demo or non-sensitive content only |
-| Add a Basic rule | Add a keyword check and fixed reply in `basic()` in `app.py` | Keep wording exact and approved |
+| Add a Basic menu topic | Add a node to `BASIC_TREE` in `app.py` (label, answer, follow-up options, keywords), link it from a parent's options, and add it to `BASIC_MATCH_ORDER` | Keep wording exact and approved |
 | Add a demo tool | Add it to `tool()` and `ALLOWED_TOOLS`, and a keyword rule in the automation branch | Mock results only |
 | Change the model | `ANTHROPIC_MODEL` in `.env` | Restart |
 | Run the tests | `pip install -r requirements-dev.txt` then `pytest` | No key or internet needed |

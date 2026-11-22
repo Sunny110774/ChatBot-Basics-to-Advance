@@ -77,9 +77,24 @@ def test_basic_uses_rules_only(env):
     _, r = ask(client, "basic", "What are the banking hours?")
     assert r.status_code == 200
     assert "Monday" in r.json()["answer"]
+    assert r.json()["metadata"]["options"] == ["Holiday schedule", "Same-day payment cut-off", "Main menu"]
     _, r = ask(client, "basic", "Tell me a joke")
     assert "No matching rule" in r.json()["answer"]
+    assert "Banking hours" in r.json()["metadata"]["options"]  # falls back to the main menu
     assert calls == []  # Basic never calls Claude
+
+
+def test_basic_menu_follow_ups(env):
+    _, client, calls = env
+    menu = client.get("/api/basic/menu").json()
+    assert menu["options"] == ["Banking hours", "Branches and ATMs", "Cards", "Leave policy", "Write an email"]
+    cid, r = ask(client, "basic", "Cards")  # a button click sends its label
+    assert "Block my card" in r.json()["metadata"]["options"]
+    _, r = ask(client, "basic", "Block my card", cid)
+    assert "level 04" in r.json()["answer"]
+    _, r = ask(client, "basic", "Start a new mail")  # typed text matched by keyword
+    assert "Leave request email" in r.json()["metadata"]["options"]
+    assert calls == []
 
 
 def test_generative_calls_claude(env):

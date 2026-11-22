@@ -16,7 +16,7 @@ It is part of the **Learning with Naveen** module on the evolution of AI, and wa
 
 | # | Level | Workflow | What it adds | Best for |
 | --- | --- | --- | --- | --- |
-| 01 | Basic chatbot | User -> rule match -> fixed response | Exact, predictable answers | FAQs, regulated wording, menus |
+| 01 | Basic chatbot | User -> menu or rule match -> fixed response + next options | Exact, predictable answers | FAQs, regulated wording, menus |
 | 02 | Generative AI | Prompt -> LLM -> generated response | Understands free text, writes new content | Drafting, summarising, explaining |
 | 03 | RAG | Question -> retrieve documents -> LLM -> grounded answer | Answers from your own documents, with sources | Policies, SOPs, knowledge bases |
 | 04 | AI Automation | Request -> LLM -> tool -> action -> result | Carries out defined tasks | Tickets, lookups, recurring reports |
@@ -42,7 +42,7 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 
 ![Architecture: browser, FastAPI app, five modes, SQLite history, Claude API](docs/images/architecture.png)
 
-- **01 Basic:** keyword rules in Python; never calls an AI model.
+- **01 Basic:** a guided menu of fixed questions; each answer offers the next questions as buttons, and typed questions are matched by keyword. Never calls an AI model.
 - **02 Generative AI:** sends the conversation to Claude with a short system prompt.
 - **03 RAG:** keyword retrieval over Markdown files in `knowledge/`; Claude answers only from the retrieved text and cites the file. If nothing matches, it says so instead of guessing.
 - **04 AI Automation:** keyword rules choose allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft); Claude summarises the results.

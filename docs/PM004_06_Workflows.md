@@ -14,7 +14,7 @@ The highlighted box is what the user gets back. What changes from level to level
 
 | Level | User does | User sees | User can trust it for |
 | --- | --- | --- | --- |
-| 01 Basic | Asks a known question | A fixed answer, or a clear "no rule" message | Exact, approved wording |
+| 01 Basic | Clicks a topic or asks a known question | A fixed answer with buttons for the next questions, or the main menu if nothing matches | Exact, approved wording |
 | 02 Generative AI | Asks anything in their own words | A new written answer | Drafting and explaining; not company facts |
 | 03 RAG | Asks about company policy or procedure | An answer plus the source file names | Answers grounded in the documents given |
 | 04 AI Automation | Asks for a known task | A summary plus the tools that ran | Defined tasks with predictable steps |
@@ -36,7 +36,7 @@ Step 5 runs different functions in `app.py` for each level. The number of Claude
 
 | Level | Key functions | Claude calls per message | Backlog upgrade |
 | --- | --- | --- | --- |
-| 01 Basic | `basic()` | 0 | None needed |
+| 01 Basic | `basic()` over `BASIC_TREE` (16 topics, each with follow-up options) | 0 | None needed |
 | 02 Generative AI | `history()`, `clean_messages()`, `llm()` | 1 | None needed |
 | 03 RAG | `retrieve()` (keyword overlap, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
 | 04 AI Automation | keyword rules, `tool()`, `llm()` to summarise | 1 | Claude native tool calling |
@@ -61,12 +61,13 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 
 ## 5. Interfaces and data
 
-The page talks to six small API endpoints, and two SQLite tables hold all conversations.
+The page talks to seven small API endpoints, and two SQLite tables hold all conversations.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /` | Serves the web page |
 | `GET /api/health` | Status badge: provider, model, whether a key is configured |
+| `GET /api/basic/menu` | Main menu topics for the Basic bot |
 | `GET /api/conversations?bot=<mode>` | Lists saved conversations for one mode, newest first |
 | `POST /api/conversations` | Starts a new conversation for a mode |
 | `GET /api/conversations/{id}` | Reopens one conversation with all its messages |

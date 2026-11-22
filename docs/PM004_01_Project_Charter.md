@@ -119,7 +119,7 @@ Each level keeps what the previous one could do and adds one capability: rules, 
 
 | # | Type | Workflow | What it adds | In the prototype today |
 | --- | --- | --- | --- | --- |
-| 01 | Basic chatbot | User -> rule match -> predefined response | Fixed, predictable answers | Keyword rules for bank hours, leave policy, email flow; clear fallback |
+| 01 | Basic chatbot | User -> menu or rule match -> predefined response | Fixed, predictable answers | Guided menu of 16 demo topics (bank hours, branches, cards, leave, email templates) with follow-up buttons; falls back to the main menu |
 | 02 | Generative AI | Prompt -> LLM -> generated response | Understands free text and writes new content | Claude with a short system prompt |
 | 03 | RAG | Question -> retrieve knowledge -> LLM -> grounded answer | Answers from your own documents, with sources | Keyword retrieval over 3 demo policy files; refuses when nothing matches |
 | 04 | AI Automation | Request -> LLM -> tool or API -> action -> result | Does defined tasks through tools | Keyword rules call allow-listed demo tools; Claude summarises results |

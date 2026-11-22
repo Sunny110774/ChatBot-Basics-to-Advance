@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-11-22
+
+- Basic chatbot is now a guided menu: the welcome screen shows the main topics as buttons, every answer offers follow-up questions, and unrecognised questions return the main menu instead of a dead end.
+- 16 demo topics: banking hours, holidays, payment cut-off, branches, ATM limit, cards (block, not working), leave policy (apply, balance) and email templates.
+- New endpoint `GET /api/basic/menu`; Basic answers return their follow-up options in the metadata.
+- Tests: 10 offline tests (new: menu and follow-ups).
+
 ## 0.2.0 - 2026-11-22
 
 Moved from OpenAI to Anthropic Claude and prepared for GitHub.
