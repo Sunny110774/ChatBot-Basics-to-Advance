@@ -353,7 +353,7 @@ def number_sources(hits):
 
 # ---------- 04/05 allow-listed demo tools (mock data; nothing outside the app changes) ----------
 ALLOWED_TOOLS = {"leave_balance", "leave_policy", "search_knowledge", "create_ticket", "email_draft",
-                 "block_card", "payment_status"}
+                 "block_card", "order_replacement_card", "payment_status"}
 
 
 def tool(name, args):
@@ -369,7 +369,10 @@ def tool(name, args):
         return {"status": "draft prepared; not sent", "subject": args.get("subject", "Draft email"), "body": str(args.get("body", ""))[:1500]}
     if name == "block_card":
         return {"status": "card marked as blocked in the demo only; no real card was changed",
-                "card": "demo card ending 4417", "next_step": "a replacement card would be ordered after the customer confirms"}
+                "card": "demo card ending 4417"}
+    if name == "order_replacement_card":
+        return {"status": "replacement card ordered in the demo only; no real card was ordered",
+                "card": "replacement for demo card ending 4417", "delivery": "5-7 working days to the registered address (mock)"}
     if name == "payment_status":
         ref = str(args.get("reference") or "").upper() or "not provided"
         return {"reference": ref, "status": "held for a routine fraud-prevention check (mock data)",
@@ -394,7 +397,9 @@ def automation_tools(q, text):
     if any(x in q for x in ["leave", "vacation", "time off", "holiday"]):
         results += [{"tool": "leave_balance", "result": tool("leave_balance", {})},
                     {"tool": "leave_policy", "result": tool("leave_policy", {})}]
-    if "card" in q and any(x in q for x in ["block", "lost", "stolen", "freeze"]):
+    if "card" in q and "replacement" in q:
+        results.append({"tool": "order_replacement_card", "result": tool("order_replacement_card", {})})
+    elif "card" in q and any(x in q for x in ["block", "lost", "stolen", "freeze"]):
         results.append({"tool": "block_card", "result": tool("block_card", {})})
     if "payment" in q and any(x in q for x in ["status", "where", "track", "stuck", "pay-", "check"]):
         results.append({"tool": "payment_status", "result": tool("payment_status", {"reference": payment_ref(text)})})
@@ -413,18 +418,39 @@ APPROVE = {"block_card": "Yes, block the card"}
 DECLINE = {"block_card": "No, keep it active"}
 
 # What the Automation bot can actually do: its follow-ups only offer these tasks.
-AUTOMATION_TASKS = [
-    ("leave_balance", "What is my leave balance?"),
-    ("block_card", "I lost my card, please block it"),
-    ("payment_status", "Check the status of payment PAY-1042"),
-    ("create_ticket", "Raise a support ticket for a failed payment"),
-    ("email_draft", "Draft an email to my manager about my leave"),
-]
+AUTOMATION_TASKS = {
+    "leave_balance": "What is my leave balance?",
+    "block_card": "I lost my card, please block it",
+    "order_replacement_card": "Order a replacement card",
+    "payment_status": "Check the status of payment PAY-1042",
+    "create_ticket": "Raise a support ticket for a failed payment",
+    "card_ticket": "Raise a support ticket about my card",
+    "email_draft": "Draft an email to my manager about my leave",
+}
+# The natural next steps after each task, so follow-ups stay on the same topic.
+NEXT_TASKS = {
+    "leave_balance": ["email_draft"],
+    "leave_policy": ["email_draft"],
+    "email_draft": ["leave_balance"],
+    "block_card": ["order_replacement_card", "card_ticket"],
+    "order_replacement_card": ["card_ticket"],
+    "payment_status": ["create_ticket"],
+    "create_ticket": ["payment_status"],
+    "card_ticket": [],
+    "search_knowledge": [],
+}
+# If the user says No to an action, offer only steps that still make sense without it.
+AFTER_DECLINE = {"block_card": ["card_ticket"]}
 
 
 def automation_follow_ups(done):
-    """Fixed follow-ups: tasks the tools can really do, excluding the ones just done."""
-    return [q for name, q in AUTOMATION_TASKS if name not in done][:3] + ["Main menu"]
+    """Fixed follow-ups: real tasks on the same topic as the ones just done, then the main menu."""
+    out = []
+    for name in done:
+        for nxt in NEXT_TASKS.get(name, []):
+            if nxt not in done and AUTOMATION_TASKS[nxt] not in out:
+                out.append(AUTOMATION_TASKS[nxt])
+    return out[:3] + ["Main menu"]
 
 
 def pending_approval(prior):
@@ -587,14 +613,15 @@ def chat(b: ChatReq):
             answer = "Understood. Nothing was changed: the card stays active."
             meta["did"] = f"You declined the action ({action}), so it was not run. No AI model was used for this reply."
             meta["declined"] = [action]
-            meta["options"] = automation_follow_ups({action}) if b.bot == "automation" else ["Main menu"]
+            meta["options"] = ([AUTOMATION_TASKS[t] for t in AFTER_DECLINE.get(action, [])] if b.bot == "automation" else []) + ["Main menu"]
         else:
             results = [{"tool": action, "result": tool(action, {})}]
             meta["tools"] = results
             meta["approved"] = [action]
             answer = llm(f"You are Bluewater Bank's {'AI Automation' if b.bot == 'automation' else 'Agentic AI'} demo. The user has just approved this action, "
                          "and it has been carried out in the demo. Confirm what was done, based only on the tool result, and say clearly that it is mock "
-                         "demo data and no real card or system was changed.\n\nTool result:\n" + json.dumps(results), msgs)
+                         "demo data and no real card or system was changed. Do not ask a question or offer further actions; the app shows the next steps as buttons."
+                         "\n\nTool result:\n" + json.dumps(results), msgs)
             meta["did"] = f"You approved the action, so the app ran {action} (mock), then Claude confirmed the result."
             if b.bot == "automation":
                 meta["options"] = automation_follow_ups({action})
@@ -616,15 +643,18 @@ def chat(b: ChatReq):
             meta["tools"] = results
             answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
                          "Say clearly that the data is mock demo data and that nothing in a real system was changed. "
-                         "Do not offer or suggest any task beyond what the tools did.\n\nTools:\n" + json.dumps(results), msgs)
+                         "Do not ask a question or offer any further action; the app shows the next steps as buttons.\n\nTools:\n" + json.dumps(results), msgs)
             meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
-            meta["options"] = automation_follow_ups({r["tool"] for r in results})
+            done = {r["tool"] for r in results}
+            if "card" in q and "create_ticket" in done:  # a card ticket stays on the card topic
+                done = (done - {"create_ticket"}) | {"card_ticket"}
+            meta["options"] = automation_follow_ups(done)
 
     else:  # agentic
         plan = llm(
             "You are Bluewater Bank's Agentic AI demo (a fictional bank). Make a 2-4 step plan to reach the user's goal and pick tools "
             "only from: leave_balance, leave_policy, search_knowledge (args: query), create_ticket (args: summary), "
-            "email_draft (args: subject, body), block_card, payment_status (args: reference). "
+            "email_draft (args: subject, body), block_card, order_replacement_card, payment_status (args: reference). "
             "Return JSON only, with no other text: "
             "{\"plan\":[...],\"tools\":[{\"name\":\"...\",\"args\":{}}],\"verification\":\"...\"}. "
             "Never propose real external actions.", msgs)

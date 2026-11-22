@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 - 2026-11-22
+- **Automation follow-ups stay on topic:** after blocking a card the buttons now offer "Order a replacement card" and "Raise a support ticket about my card", not unrelated tasks such as the leave balance. Leave leads to the email draft, payments to a support ticket.
+- **New mock task `order_replacement_card`:** the replacement card Claude used to mention is now a real (mock) step with its own button.
+- **No dangling offers:** Automation's summaries no longer ask questions or offer actions it cannot do; next steps appear only as buttons.
+- **Declining a card block** offers only a support ticket, never a replacement for an active card.
+
 ## 0.6.0 - 2026-11-22
 
 - **Human approval for irreversible actions:** blocking a card now asks **Yes, block the card / No, keep it active** first, in both AI Automation and Agentic AI. Declining runs nothing (no tool, no Claude call). The agent still runs its safe steps and holds only the irreversible one. The "What this level did" panel records approvals and declines.

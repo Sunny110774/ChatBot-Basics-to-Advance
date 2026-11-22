@@ -241,7 +241,7 @@ def test_shared_company_tools(env):
     _, r = ask(client, "automation", "Yes, block the card", cid)
     meta = r.json()["metadata"]
     assert [t["tool"] for t in meta["tools"]] == ["block_card"] and meta["approved"] == ["block_card"]
-    assert "I lost my card, please block it" not in meta["options"]  # follow-ups: other real tasks only
+    assert meta["options"] == ["Order a replacement card", "Raise a support ticket about my card", "Main menu"]  # same topic only
     _, r = ask(client, "automation", "Check the status of payment PAY-1042")
     tools = r.json()["metadata"]["tools"]
     assert tools[0]["tool"] == "payment_status" and tools[0]["result"]["reference"] == "PAY-1042"
@@ -290,15 +290,21 @@ def test_declining_an_action_runs_nothing(env):
     _, r = ask(client, "automation", "No, keep it active", cid)
     meta = r.json()["metadata"]
     assert meta["declined"] == ["block_card"] and meta["tools"] == [] and len(calls) == n  # no tool, no Claude call
+    assert meta["options"] == ["Raise a support ticket about my card", "Main menu"]  # no replacement for an active card
 
 
-def test_automation_follow_ups_are_real_tasks(env):
+def test_automation_follow_ups_stay_on_topic(env):
     app, client, _ = env
     _, r = ask(client, "automation", "What is my leave balance?")
-    tasks = {q for _, q in app.AUTOMATION_TASKS}
     opts = r.json()["metadata"]["options"]
-    assert opts[-1] == "Main menu" and all(o in tasks for o in opts[:-1])
-    assert "What is my leave balance?" not in opts
+    assert opts == ["Draft an email to my manager about my leave", "Main menu"]  # on topic, never cards or payments
+    _, r = ask(client, "automation", "Order a replacement card")
+    meta = r.json()["metadata"]
+    assert [t["tool"] for t in meta["tools"]] == ["order_replacement_card"]  # no approval needed, nothing irreversible
+    assert meta["options"] == ["Raise a support ticket about my card", "Main menu"]
+    _, r = ask(client, "automation", "Raise a support ticket about my card")
+    meta = r.json()["metadata"]
+    assert "create_ticket" in [t["tool"] for t in meta["tools"]] and meta["options"] == ["Main menu"]
 
 
 def test_agent_never_blocks_a_card_without_approval(env, monkeypatch):
