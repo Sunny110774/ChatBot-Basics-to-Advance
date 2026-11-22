@@ -48,7 +48,10 @@ function didPanel(meta){let d=document.createElement("details");d.className="did
  if(meta.tools?.length)h+=`<div class="row"><b>Tools run (mock data):</b>${meta.tools.map(t=>`<div><code>${esc(t.tool)}</code> → ${esc(short(t.result))}</div>`).join("")}</div>`;
  else if(["automation","agentic"].includes(meta.mode))h+=`<div class="row"><b>Tools run:</b> none</div>`;
  if(meta.skipped?.length)h+=`<div class="row"><b>Blocked (not on the allow-list):</b> ${meta.skipped.map(esc).join(", ")}</div>`;
- if(meta.verification)h+=`<div class="row"><b>Check:</b> ${esc(meta.verification)}</div>`;d.innerHTML=h;return d}
+ if(meta.verification)h+=`<div class="row"><b>Check:</b> ${esc(meta.verification)}</div>`;
+ if(meta.awaiting)h+=`<div class="row"><b>Waiting for your approval:</b> <code>${esc(meta.awaiting)}</code> was not run, because it cannot be undone.</div>`;
+ if(meta.approved?.length)h+=`<div class="row"><b>Approved by you:</b> ${meta.approved.map(x=>`<code>${esc(x)}</code>`).join(", ")}</div>`;
+ if(meta.declined?.length)h+=`<div class="row"><b>Declined by you:</b> ${meta.declined.map(x=>`<code>${esc(x)}</code>`).join(", ")} (nothing was run)</div>`;d.innerHTML=h;return d}
 function add(role,text,meta){$("messages").querySelector(".welcome")?.remove();let d=document.createElement("div");d.className="msg "+role;
  let ai=role==="assistant"&&meta&&meta.mode&&!["fixed_rules","menu"].includes(meta.mode);
  let numbered=ai&&meta.sources?.length&&meta.sources[0].n;if(ai){d.classList.add("md");d.innerHTML=numbered?cite(md(text),meta.sources):md(text)}else d.textContent=text;

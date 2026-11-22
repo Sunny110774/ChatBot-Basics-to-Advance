@@ -17,7 +17,7 @@ The highlighted box is what the user gets back. What changes from level to level
 | 01 Basic | Clicks a topic or asks a known question | A fixed answer with buttons for the next questions, or the main menu if nothing matches | Exact, approved wording |
 | 02 Generative AI | Picks a topic or asks anything in their own words | A new written answer, three suggested follow-up questions and Main menu | Drafting and explaining; not company facts |
 | 03 RAG | Asks about company policy or procedure | An answer plus the source file names | Answers grounded in the documents given |
-| 04 AI Automation | Asks for a known task | A summary plus the tools that ran | Defined tasks with predictable steps |
+| 04 AI Automation | Asks for a known task | A summary plus the tools that ran; a Yes / No approval first for anything irreversible; follow-ups offer only real tasks | Defined tasks with predictable steps |
 | 05 Agentic AI | States a goal | The plan, the tools that ran and the result | Multi-step goals, with a person approving any real action |
 
 ## 2. Technical request flow
@@ -60,6 +60,8 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 | Conversation belongs to another bot | Rejects the message (HTTP 400) | Error message | No |
 | Empty message or unknown bot | Rejects the message (HTTP 400) | Error message | No |
 | Any demo tool | Returns mock data only; nothing is sent, submitted or booked | Results marked as demo or "not sent" | Yes |
+| An irreversible action is chosen (block_card), by rules (04) or by the agent's plan (05) | Holds it and asks for approval; other safe steps still run | "Please confirm…" with **Yes** / **No** buttons | Yes |
+| User declines the action | Runs nothing and makes no Claude call | "Nothing was changed" | Yes |
 
 ## 5. Interfaces and data
 

@@ -407,6 +407,43 @@ def automation_tools(q, text):
     return results
 
 
+# ---------- human approval for actions that cannot be undone ----------
+NEEDS_APPROVAL = {"block_card": "block the demo card ending 4417. A blocked card cannot be unblocked; a replacement would be ordered"}
+APPROVE = {"block_card": "Yes, block the card"}
+DECLINE = {"block_card": "No, keep it active"}
+
+# What the Automation bot can actually do: its follow-ups only offer these tasks.
+AUTOMATION_TASKS = [
+    ("leave_balance", "What is my leave balance?"),
+    ("block_card", "I lost my card, please block it"),
+    ("payment_status", "Check the status of payment PAY-1042"),
+    ("create_ticket", "Raise a support ticket for a failed payment"),
+    ("email_draft", "Draft an email to my manager about my leave"),
+]
+
+
+def automation_follow_ups(done):
+    """Fixed follow-ups: tasks the tools can really do, excluding the ones just done."""
+    return [q for name, q in AUTOMATION_TASKS if name not in done][:3] + ["Main menu"]
+
+
+def pending_approval(prior):
+    """The action the last assistant answer asked the user to approve, if any."""
+    for m in reversed(prior):
+        if m["role"] == "assistant":
+            return (m.get("meta") or {}).get("awaiting")
+    return None
+
+
+def approval_reply(text, action):
+    t = text.strip().lower()
+    if t == APPROVE[action].lower() or t in {"yes", "y", "confirm", "approve", "yes please", "go ahead"}:
+        return "approve"
+    if t == DECLINE[action].lower() or t in {"no", "n", "cancel", "stop", "don't", "do not"}:
+        return "decline"
+    return None
+
+
 # ---------- routes ----------
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -543,15 +580,45 @@ def chat(b: ChatReq):
                          + " The follow-up questions must be answerable from Bluewater Bank's documents.\n\nContext:\n" + context, msgs)
             meta["did"] = f"Searched {files} knowledge files, picked the {len(hits)} best-matching passages from {len(docs)} document(s), and told Claude to answer only from them and cite them by number."
 
+    elif b.bot in ("automation", "agentic") and pending_approval(prior) and approval_reply(b.message, pending_approval(prior)):
+        # The user is answering an approval request from the previous turn.
+        action = pending_approval(prior)
+        if approval_reply(b.message, action) == "decline":
+            answer = "Understood. Nothing was changed: the card stays active."
+            meta["did"] = f"You declined the action ({action}), so it was not run. No AI model was used for this reply."
+            meta["declined"] = [action]
+            meta["options"] = automation_follow_ups({action}) if b.bot == "automation" else ["Main menu"]
+        else:
+            results = [{"tool": action, "result": tool(action, {})}]
+            meta["tools"] = results
+            meta["approved"] = [action]
+            answer = llm(f"You are Bluewater Bank's {'AI Automation' if b.bot == 'automation' else 'Agentic AI'} demo. The user has just approved this action, "
+                         "and it has been carried out in the demo. Confirm what was done, based only on the tool result, and say clearly that it is mock "
+                         "demo data and no real card or system was changed.\n\nTool result:\n" + json.dumps(results), msgs)
+            meta["did"] = f"You approved the action, so the app ran {action} (mock), then Claude confirmed the result."
+            if b.bot == "automation":
+                meta["options"] = automation_follow_ups({action})
+
     elif b.bot == "automation":
         results = automation_tools(q, b.message)
         if not results:
             results = [{"tool": "search_knowledge", "result": tool("search_knowledge", {"query": b.message})}]
-        meta["tools"] = results
-        answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
-                     "Say clearly that the data is mock demo data and that nothing in a real system was changed." + FOLLOW_UPS
-                     + "\n\nTools:\n" + json.dumps(results), msgs)
-        meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
+        held = [r["tool"] for r in results if r["tool"] in NEEDS_APPROVAL]
+        if held:
+            action = held[0]
+            meta["awaiting"] = action
+            meta["tools"] = [r for r in results if r["tool"] not in NEEDS_APPROVAL]
+            answer = (f"Before I do this, please confirm: I will {NEEDS_APPROVAL[action]}. "
+                      "This is a demo, so nothing real will change, but a real bank would always ask first.")
+            meta["did"] = f"Fixed rules picked {action}, which cannot be undone, so the app paused and asked for your approval instead of running it."
+            meta["options"] = [APPROVE[action], DECLINE[action]]
+        else:
+            meta["tools"] = results
+            answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
+                         "Say clearly that the data is mock demo data and that nothing in a real system was changed. "
+                         "Do not offer or suggest any task beyond what the tools did.\n\nTools:\n" + json.dumps(results), msgs)
+            meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
+            meta["options"] = automation_follow_ups({r["tool"] for r in results})
 
     else:  # agentic
         plan = llm(
@@ -566,9 +633,11 @@ def chat(b: ChatReq):
         except Exception:
             obj = {"plan": ["Understand goal", "Use relevant demo tools", "Review results"], "tools": [],
                    "verification": "Could not parse a structured plan; no tools run."}
-        observed, skipped = [], []
+        observed, skipped, held = [], [], []
         for item in obj.get("tools", [])[:4]:
-            if isinstance(item, dict) and item.get("name") in ALLOWED_TOOLS:
+            if isinstance(item, dict) and item.get("name") in NEEDS_APPROVAL:
+                held.append(item["name"])  # never run without the user's approval
+            elif isinstance(item, dict) and item.get("name") in ALLOWED_TOOLS:
                 observed.append({"tool": item["name"], "result": tool(item["name"], item.get("args") or {})})
             elif isinstance(item, dict) and item.get("name"):
                 skipped.append(str(item["name"]))
@@ -576,13 +645,22 @@ def chat(b: ChatReq):
         meta["tools"] = observed
         meta["skipped"] = skipped
         meta["verification"] = obj.get("verification", "")
+        if held:
+            meta["awaiting"] = held[0]
+        approval_note = (f" The step '{held[0]}' was NOT run: it cannot be undone, so it is waiting for the user's approval. "
+                         f"End by asking the user to approve it ({NEEDS_APPROVAL[held[0]]}). Do not add follow-up questions."
+                         if held else FOLLOW_UPS + " Only suggest follow-ups the available tools can handle.")
         answer = llm("You are Bluewater Bank's Agentic AI demo. Explain the plan, what each tool returned and whether the goal is met, honestly. "
-                     "Say what still needs a human decision. No real-world action was taken; all data is mock." + FOLLOW_UPS + "\n\nPlan and results:\n"
-                     + json.dumps({"plan": meta["plan"], "tools": observed, "verification": meta["verification"]}), msgs)
-        meta["did"] = "Claude planned the steps and chose tools; the app ran only allow-listed tools; Claude then checked the results against the goal."
+                     "Say what still needs a human decision. No real-world action was taken; all data is mock." + approval_note + "\n\nPlan and results:\n"
+                     + json.dumps({"plan": meta["plan"], "tools": observed, "awaiting_approval": held, "verification": meta["verification"]}), msgs)
+        if held:
+            meta["options"] = [APPROVE[held[0]], DECLINE[held[0]]]
+        meta["did"] = ("Claude planned the steps and chose tools; the app ran only allow-listed tools, paused any step that cannot be undone "
+                       "until you approve it, and Claude then checked the results against the goal.")
 
     if b.bot != "basic":
         answer, follow = split_follow_ups(answer)
-        meta["options"] = (follow + ["Main menu"]) if follow else ["Main menu"]
+        if "options" not in meta:  # fixed options (approvals, automation tasks) take priority
+            meta["options"] = (follow + ["Main menu"]) if follow else ["Main menu"]
     save(b.conversation_id, "assistant", answer, meta)
     return {"answer": answer, "metadata": meta}

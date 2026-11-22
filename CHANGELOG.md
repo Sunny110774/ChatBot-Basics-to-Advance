@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0 - 2026-11-22
+
+- **Human approval for irreversible actions:** blocking a card now asks **Yes, block the card / No, keep it active** first, in both AI Automation and Agentic AI. Declining runs nothing (no tool, no Claude call). The agent still runs its safe steps and holds only the irreversible one. The "What this level did" panel records approvals and declines.
+- **Automation follow-ups are real tasks only:** level 04 now offers fixed follow-ups drawn from what its tools can actually do (leave balance, block card, payment status, support ticket, email draft), instead of open suggestions it could not carry out.
+- Tests: 22 offline tests.
+
 ## 0.5.1 - 2026-11-22
 
 - RAG citations: answers now use small numbered markers ([1], [2]) instead of file names, with a **Sources** list under the answer showing each document's readable title; click a source to see the exact passage used. One number per document.

@@ -234,8 +234,14 @@ def test_rag_refuses_off_topic_without_calling_claude(env):
 
 def test_shared_company_tools(env):
     _, client, _ = env
-    _, r = ask(client, "automation", "I lost my card, please block it")
-    assert [t["tool"] for t in r.json()["metadata"]["tools"]] == ["block_card"]
+    cid, r = ask(client, "automation", "I lost my card, please block it")
+    meta = r.json()["metadata"]
+    assert meta["awaiting"] == "block_card" and meta["tools"] == []  # not run before approval
+    assert meta["options"] == ["Yes, block the card", "No, keep it active"]
+    _, r = ask(client, "automation", "Yes, block the card", cid)
+    meta = r.json()["metadata"]
+    assert [t["tool"] for t in meta["tools"]] == ["block_card"] and meta["approved"] == ["block_card"]
+    assert "I lost my card, please block it" not in meta["options"]  # follow-ups: other real tasks only
     _, r = ask(client, "automation", "Check the status of payment PAY-1042")
     tools = r.json()["metadata"]["tools"]
     assert tools[0]["tool"] == "payment_status" and tools[0]["result"]["reference"] == "PAY-1042"
@@ -275,3 +281,47 @@ def test_split_follow_ups_formats(env):
     assert app.split_follow_ups("A\n\n**FOLLOW-UPS:** x? | y? | z? | w?") == ("A", ["x?", "y?", "z?"])
     assert app.split_follow_ups("No list") == ("No list", [])
     assert app.split_follow_ups("Use *care*\n\nFOLLOW-UPS: a? | b? | c?")[0] == "Use *care*"  # keeps closing asterisk
+
+
+def test_declining_an_action_runs_nothing(env):
+    _, client, calls = env
+    cid, _ = ask(client, "automation", "My card was stolen, block it")
+    n = len(calls)
+    _, r = ask(client, "automation", "No, keep it active", cid)
+    meta = r.json()["metadata"]
+    assert meta["declined"] == ["block_card"] and meta["tools"] == [] and len(calls) == n  # no tool, no Claude call
+
+
+def test_automation_follow_ups_are_real_tasks(env):
+    app, client, _ = env
+    _, r = ask(client, "automation", "What is my leave balance?")
+    tasks = {q for _, q in app.AUTOMATION_TASKS}
+    opts = r.json()["metadata"]["options"]
+    assert opts[-1] == "Main menu" and all(o in tasks for o in opts[:-1])
+    assert "What is my leave balance?" not in opts
+
+
+def test_agent_never_blocks_a_card_without_approval(env, monkeypatch):
+    app, client, calls = env
+
+    class Plan:
+        def __init__(self):
+            self.inner = FakeMessages(calls)
+
+        def create(self, **kw):
+            if "Return JSON only" in kw["system"]:
+                text = json.dumps({"plan": ["Block card", "Raise ticket"], "tools": [{"name": "block_card", "args": {}}, {"name": "create_ticket", "args": {"summary": "lost card"}}], "verification": "done"})
+                return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)])
+            return self.inner.create(**kw)
+
+        def count_tokens(self, **kw):
+            return types.SimpleNamespace(input_tokens=1)
+
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=Plan()))
+    cid, r = ask(client, "agentic", "I lost my card, sort it out")
+    meta = r.json()["metadata"]
+    assert meta["awaiting"] == "block_card"
+    assert [t["tool"] for t in meta["tools"]] == ["create_ticket"]  # the safe step ran, the irreversible one waits
+    assert meta["options"][0] == "Yes, block the card"
+    _, r = ask(client, "agentic", "yes", cid)
+    assert r.json()["metadata"]["approved"] == ["block_card"]

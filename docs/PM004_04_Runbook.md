@@ -78,6 +78,7 @@ Click the same topic in all five bots, in order, and point out what changes. The
 | --- | --- | --- | --- | --- | --- |
 | "What is the leave policy?" | Fixed rule: leave needs approval, ask HR | General answer; does not know your policy | Quotes the demo policy (request 5 working days ahead) and cites `leave_policy.md` | Runs leave balance (8 days, mock) and leave policy tools, then summarises | Makes a plan, picks the leave tools, explains and verifies |
 | "My payment was declined, what should I do?" | No rule: fallback message | General list of common causes | Uses `payments_support.md`: details to confirm, possible causes, escalate | Searches the knowledge base and summarises | Plans the checks, searches, suggests next steps |
+| "I lost my card. What should I do?" (the **Cards** topic) | Card menu: how to block it | General advice | Card policy with source [1] | Asks **Yes, block the card / No, keep it active** first; blocks the demo card only after Yes | Plans the steps, runs safe ones (e.g. a ticket), holds the block for your approval |
 | "My payment keeps failing, raise a support ticket" | Fallback | Explains it cannot raise tickets | Answers from the guides, no ticket | Also creates a demo ticket (DEMO-xxxxxxxx) | May plan search, then ticket, then a check |
 | "Can I take two days of leave next week? Draft the email to my manager." | Email flow rule asks for purpose, dates and tone | Drafts a generic email | Policy answer with source | Leave tools plus an email draft, marked not sent | Plans policy, balance and draft steps, then asks you to review |
 
@@ -121,7 +122,7 @@ Results vary slightly between runs for modes 02 to 05.
 **Safety rules**
 - Demo data only; never paste real client, payment or personal data.
 - Tools stay mock: nothing is sent, submitted or booked.
-- Any future real action needs a human approval step before it runs.
+- Actions that cannot be undone (blocking a card) always ask **Yes / No** first, in Automation and Agentic modes; the "What this level did" panel records whether you approved or declined.
 - Never commit or share `.env`; it is excluded by `.gitignore`.
 
 **Backup and reset**

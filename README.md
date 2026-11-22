@@ -45,8 +45,8 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 - **01 Basic:** a guided menu of fixed questions; each answer offers the next questions as buttons, and typed questions are matched by keyword. Never calls an AI model.
 - **02 Generative AI:** sends the conversation to Claude with a short system prompt.
 - **03 RAG:** keyword retrieval (common words ignored) over the Markdown files in `knowledge/`; Claude answers only from the retrieved passages and cites them with numbered markers, and a Sources list under the answer shows each document's title and the exact passage used. If nothing matches, it says so and Claude is not called.
-- **04 AI Automation:** fixed rules choose allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft, block card, payment status); Claude summarises the results.
-- **05 Agentic AI:** Claude writes a short plan and picks tools; the app runs only allow-listed tools; Claude explains the results and verifies them.
+- **04 AI Automation:** fixed rules choose allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft, block card, payment status); Claude summarises the results. Actions that cannot be undone (blocking a card) pause for the user's **Yes / No** approval first, and follow-up buttons offer only tasks the tools can really do.
+- **05 Agentic AI:** Claude writes a short plan and picks tools; the app runs only allow-listed tools and holds any irreversible step until the user approves it; Claude explains the results and verifies them.
 - **History:** every conversation is stored per mode in SQLite and can be reopened, including what each level did.
 - **Shared company:** all five bots use the same fictional company, Bluewater Bank: the Basic menu, the five knowledge files and the demo tools state the same facts, so answers can be compared like for like.
 - **Same workflow in every bot:** all five open with the same five topics (Banking hours, Branches and ATMs, Cards, Leave policy, Write an email), and each topic asks the same question in every bot, so levels can be compared like for like. Every answer ends with follow-up buttons: fixed ones in level 01, three suggested by Claude in levels 02 to 05, plus Main menu.
@@ -113,6 +113,7 @@ Next: live verification of all five modes with a shared scenario set, then Claud
 
 - Learning prototype with demo data only. Not production software.
 - Demo tools are mock: nothing is emailed, submitted, booked or changed outside the app.
+- Human in the loop: irreversible actions (blocking a card) never run until the user approves them, in both Automation and Agentic modes.
 - The API key stays on the server side in `.env`, which is excluded from git.
 - Production use would need authentication, access control, rate limits, guardrails, human approval for actions, monitoring and a security review.
 
