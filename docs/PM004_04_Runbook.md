@@ -6,15 +6,15 @@ What the app is, how to run it, how to demo the five levels and what to do when 
 
 ## 1. Summary
 
-The app shows five chatbots side by side, from fixed rules to a goal-driven agent. Pick one on the left, ask a question, and every conversation is saved in the middle panel.
+The app shows five chatbots side by side, from fixed rules to a goal-driven agent, all serving one fictional company, Bluewater Bank. Pick one on the left, ask a question, and every conversation is saved in the middle panel.
 
 | # | Chatbot | What it does | Uses Claude | Try asking | Shown under the answer |
 | --- | --- | --- | --- | --- | --- |
 | 01 | Basic Chatbot | Guided menu: pick a topic, then follow-up buttons; typed questions matched by keyword; anything else returns the main menu | No | Click **Cards**, then **Block my card** | Follow-up buttons, mode: fixed_rules |
-| 02 | Generative AI | Writes a free answer from the question alone | Yes | "Help me draft an email to my manager asking for 2 days' leave" | Mode |
-| 03 | RAG | Finds matching text in `knowledge/` and answers only from it, naming the file | Yes | "What is the leave policy?" | Sources, mode |
-| 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | Tools used, mode |
-| 05 | Agentic AI | Claude plans 2 to 4 steps, picks allowed demo tools, the app runs them, Claude explains and verifies | Yes | "Plan 3 days of leave for me and draft the email to my manager" | Tools used, mode |
+| 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to my manager asking for two days' leave next week" | "What this level did" |
+| 03 | RAG | Finds matching text in `knowledge/` and answers only from it, naming the file | Yes | "What is the leave policy?" | "What this level did": sources and match % |
+| 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
+| 05 | Agentic AI | Claude plans 2 to 4 steps, picks allowed demo tools, the app runs them, Claude explains and verifies | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
 
 Rule of thumb: use the simplest level that fully solves the problem (decision guide in the charter, section 6.4).
 
@@ -39,7 +39,7 @@ Rule of thumb: use the simplest level that fully solves the problem (decision gu
 4. Paste your Anthropic API key when asked and press Enter.
 5. When asked for the workspace ID: paste it if your key needs one (starts with `wrkspc_`), otherwise press Enter.
 6. Wait for the packages to install. The browser opens at http://127.0.0.1:8000; if the page shows an error, wait a few seconds and refresh.
-7. Check the badge at the top right says **Claude connected**.
+7. Check the badge at the top right says **Claude connected ✓**. The app runs a free live test of the key when it starts; if the badge is red, click it to open **Settings**.
 8. Open **02 Generative AI** and ask anything. A reply confirms the key works end to end.
 
 The command window is the server: leave it open while you use the app.
@@ -57,7 +57,7 @@ The command window is the server: leave it open while you use the app.
 | Reopen a conversation | Click it in the middle column |
 | Send a message | Enter; Shift+Enter for a new line |
 
-**Settings in `.env`** (save, then restart the app)
+**Settings:** click **⚙ Settings** (top right) to paste a new key, set the workspace ID or change the model, then **Save and test**. No restart needed, and the key is never shown again in full. The values are saved in `.env`:
 
 | Setting | What it does | Default |
 | --- | --- | --- |
@@ -93,11 +93,14 @@ Results vary slightly between runs for modes 02 to 05.
 | --- | --- | --- |
 | `'python' is not recognized` | Python not installed or not on PATH | Reinstall Python and tick **Add Python to PATH** |
 | Page will not load, or badge says **Start backend to connect** | Server window closed or still starting | Run `run_windows.bat` again; wait, then refresh |
-| Badge says **Anthropic key needed** | `.env` missing or key blank | Add the key to `.env`, restart |
-| Reply mentions **workspace** | Key is not tied to a workspace | Add `ANTHROPIC_WORKSPACE_ID` to `.env`, or create a key inside a workspace |
-| Claude request failed (401) | Key wrong or revoked | Paste a fresh key into `.env`, restart |
-| Claude request failed (429) | Rate or spend limit reached | Wait a minute, or check limits in the Anthropic console |
-| Could not reach Anthropic | No internet, or a proxy blocks it | Check the connection; mode 01 works offline |
+| Badge says **Set up Claude** | No key saved | Click the badge, paste the key in Settings, Save and test |
+| Badge says **Claude not connected · fix** | The live key test failed | Click the badge: Settings shows the exact reason and fix |
+| "This key needs a workspace ID" | User-linked key (`sk-ant-usr-`) without a workspace ID | Settings > Workspace ID: paste the `wrkspc_` ID of your workspace |
+| "Anthropic rejected the API key" (401) | Key mistyped, deleted or expired | Create a new key in console.anthropic.com > API keys; paste it in Settings; Save and test |
+| "Your Anthropic account has no credit left" | No credit balance | Add credit in console.anthropic.com > Billing |
+| "Too many requests or a usage limit was reached" (429) | Rate or spend limit reached | Wait a minute, or check limits in the Anthropic console |
+| "Could not reach Anthropic" | No internet, or a proxy blocks it | Check the connection; mode 01 works offline |
+| "The app's server is not responding" | The black window was closed | Run `run_windows.bat` again and refresh |
 | Port 8000 already in use | App already running in another window | Close the other window, or use the one already open |
 | Basic bot says no rule matches | Expected: it only knows its fixed rules | Use the demo questions, or add a rule (section 7) |
 | RAG says it found nothing relevant | Question words do not appear in the knowledge files | Rephrase, or add a document |

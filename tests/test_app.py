@@ -21,6 +21,9 @@ class FakeMessages:
     def __init__(self, calls):
         self.calls = calls
 
+    def count_tokens(self, **kw):
+        return types.SimpleNamespace(input_tokens=1)
+
     def create(self, **kw):
         self.calls.append(kw)
         roles = [m["role"] for m in kw["messages"]]
@@ -42,6 +45,8 @@ class FakeMessages:
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("CHATBOT_DB", str(tmp_path / "test.db"))
+    monkeypatch.setenv("CHATBOT_ENV", str(tmp_path / ".env"))
+    monkeypatch.delenv("ANTHROPIC_MODEL", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "wrkspc_test")
     sys.modules.pop("app", None)
@@ -49,7 +54,7 @@ def env(tmp_path, monkeypatch):
     calls = []
 
     def fake_client(**kw):
-        assert kw["default_headers"] == {"anthropic-workspace-id": "wrkspc_test"}
+        assert kw["default_headers"]["anthropic-workspace-id"].startswith("wrkspc_")  # sent when set
         return types.SimpleNamespace(messages=FakeMessages(calls))
 
     monkeypatch.setattr(app.anthropic, "Anthropic", fake_client)
@@ -76,7 +81,7 @@ def test_basic_uses_rules_only(env):
     _, client, calls = env
     _, r = ask(client, "basic", "What are the banking hours?")
     assert r.status_code == 200
-    assert "Monday" in r.json()["answer"]
+    assert "Monday" in r.json()["answer"] and "Bluewater" in r.json()["answer"]
     assert r.json()["metadata"]["options"] == ["Holiday schedule", "Same-day payment cut-off", "Main menu"]
     _, r = ask(client, "basic", "Tell me a joke")
     assert "No matching rule" in r.json()["answer"]
@@ -120,7 +125,7 @@ def test_automation_runs_allow_listed_tools(env):
     _, client, _ = env
     _, r = ask(client, "automation", "I need leave, raise a ticket and draft an email to my manager")
     tools = [t["tool"] for t in r.json()["metadata"]["tools"]]
-    assert tools == ["leave_balance", "leave_policy", "search_knowledge", "create_ticket", "email_draft"]
+    assert tools == ["leave_balance", "leave_policy", "create_ticket", "email_draft"]
 
 
 def test_agentic_ignores_tools_not_on_allow_list(env):
@@ -162,5 +167,77 @@ def test_missing_key_gives_clear_error(env, monkeypatch):
     _, client, _ = env
     monkeypatch.delenv("ANTHROPIC_API_KEY")
     _, r = ask(client, "generative", "hello")
-    assert r.status_code == 503
-    assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert r.status_code == 400
+    assert "No API key is set" in r.json()["detail"]
+
+
+def _status_error(app, code, message):
+    import httpx
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    resp = httpx.Response(code, request=req)
+    cls = {401: app.anthropic.AuthenticationError, 400: app.anthropic.BadRequestError}.get(code, app.anthropic.APIStatusError)
+    return cls(message, response=resp, body=None)
+
+
+def test_invalid_key_gives_plain_fix_and_marks_connection_failed(env, monkeypatch):
+    app, client, _ = env
+
+    class Bad:
+        def create(self, **kw):
+            raise _status_error(app, 401, "invalid x-api-key")
+
+        def count_tokens(self, **kw):
+            raise _status_error(app, 401, "invalid x-api-key")
+
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=Bad()))
+    _, r = ask(client, "generative", "hello")
+    assert r.status_code == 401
+    assert "rejected the API key" in r.json()["detail"] and "Settings" in r.json()["detail"]
+    assert client.get("/api/health").json()["connection"]["status"] == "failed"
+    t = client.post("/api/settings/test").json()
+    assert t["status"] == "failed" and "rejected the API key" in t["message"]
+
+
+def test_workspace_and_credit_errors_are_explained(env):
+    app, _, _ = env
+    assert "workspace ID" in app.friendly(_status_error(app, 400, "This API key is not scoped to a workspace")).message
+    assert "credit" in app.friendly(_status_error(app, 400, "Your credit balance is too low")).message
+
+
+def test_settings_save_test_and_never_return_the_key(env):
+    app, client, _ = env
+    r = client.post("/api/settings", json={"api_key": "not-a-key", "workspace_id": "", "model": ""})
+    assert r.status_code == 400
+    r = client.post("/api/settings", json={"api_key": "sk-ant-usr-" + "x" * 40 + "ABCD", "workspace_id": "wrkspc_123", "model": "claude-haiku-5-5"})
+    body = r.json()
+    assert body["key_set"] and body["key_hint"].endswith("ABCD") and "x" * 40 not in json.dumps(body)
+    assert body["workspace_id"] == "wrkspc_123" and body["model"] == "claude-haiku-5-5"
+    env_text = open(app.ENV_FILE).read()
+    assert "ANTHROPIC_WORKSPACE_ID=wrkspc_123" in env_text
+    t = client.post("/api/settings/test").json()
+    assert t["status"] == "ok"
+    assert client.get("/api/health").json()["connection"]["status"] == "ok"
+
+
+def test_rag_refuses_off_topic_without_calling_claude(env):
+    _, client, calls = env
+    _, r = ask(client, "rag", "What is the capital of France?")
+    assert "won't guess" in r.json()["answer"]
+    assert calls == []
+
+
+def test_shared_company_tools(env):
+    _, client, _ = env
+    _, r = ask(client, "automation", "I lost my card, please block it")
+    assert [t["tool"] for t in r.json()["metadata"]["tools"]] == ["block_card"]
+    _, r = ask(client, "automation", "Check the status of payment PAY-1042")
+    tools = r.json()["metadata"]["tools"]
+    assert tools[0]["tool"] == "payment_status" and tools[0]["result"]["reference"] == "PAY-1042"
+
+
+def test_what_this_level_did_is_saved_with_the_answer(env):
+    _, client, _ = env
+    cid, r = ask(client, "rag", "What is the leave policy?")
+    assert r.json()["metadata"]["did"].startswith("Searched")
+    msgs = client.get(f"/api/conversations/{cid}").json()["messages"]
+    assert msgs[1]["meta"]["sources"][0]["source"] == "leave_policy.md"

@@ -38,7 +38,7 @@ Step 5 runs different functions in `app.py` for each level. The number of Claude
 | --- | --- | --- | --- |
 | 01 Basic | `basic()` over `BASIC_TREE` (16 topics, each with follow-up options) | 0 | None needed |
 | 02 Generative AI | `history()`, `clean_messages()`, `llm()` | 1 | None needed |
-| 03 RAG | `retrieve()` (keyword overlap, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
+| 03 RAG | `retrieve()` (content-word overlap, common words ignored, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
 | 04 AI Automation | keyword rules, `tool()`, `llm()` to summarise | 1 | Claude native tool calling |
 | 05 Agentic AI | `llm()` for the plan, `parse_json()`, `ALLOWED_TOOLS` filter, `tool()`, `llm()` to explain and verify | 2 | Native tool calling in a loop, with a human approval step |
 
@@ -48,8 +48,10 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 
 | Situation | What the system does | What the user sees | Tested |
 | --- | --- | --- | --- |
-| No API key configured | Stops before calling Claude (HTTP 503) | "Configure ANTHROPIC_API_KEY on the server" | Yes |
-| Key, workspace or rate-limit problem at Anthropic | Passes Anthropic's reason back (HTTP 502) | The actual reason, plus a workspace hint where relevant | Partly (connection error) |
+| No API key configured | Stops before calling Claude (HTTP 400) | "No API key is set" plus where to add it | Yes |
+| Key rejected (401) | Explains and marks the connection as failed; badge turns red | "Anthropic rejected the API key" plus the fix and an Open Settings button | Yes |
+| Missing workspace ID or no credit | Explains the cause | The exact fix (workspace ID in Settings; add credit in Billing) | Yes |
+| Model unavailable, rate limit, Anthropic busy | Explains the cause | What to do next | No |
 | No internet | Catches the connection error (HTTP 502) | "Could not reach Anthropic" | Yes |
 | A request failed, then the user sends again | Merges the two user turns so Claude still gets alternating turns | A normal answer | Yes |
 | RAG finds nothing relevant | Does not call Claude at all | "I won't invent a policy answer" | Yes |
@@ -61,13 +63,16 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 
 ## 5. Interfaces and data
 
-The page talks to seven small API endpoints, and two SQLite tables hold all conversations.
+The page talks to ten small API endpoints, and two SQLite tables hold all conversations.
 
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /` | Serves the web page |
 | `GET /api/health` | Status badge: provider, model, whether a key is configured |
 | `GET /api/basic/menu` | Main menu topics for the Basic bot |
+| `GET /api/settings` | Whether a key is set (masked hint only), workspace ID, model |
+| `POST /api/settings` | Saves key, workspace ID and model to `.env`; validates their format |
+| `POST /api/settings/test` | Live, free connection test (token count) with a plain-English result |
 | `GET /api/conversations?bot=<mode>` | Lists saved conversations for one mode, newest first |
 | `POST /api/conversations` | Starts a new conversation for a mode |
 | `GET /api/conversations/{id}` | Reopens one conversation with all its messages |
@@ -76,6 +81,6 @@ The page talks to seven small API endpoints, and two SQLite tables hold all conv
 | Table | Fields | Notes |
 | --- | --- | --- |
 | `conversations` | id, bot, title, created_at, updated_at | Title is the first 40 characters of the first question |
-| `messages` | id, conversation_id, role, content, created_at | Role is user or assistant; full history is sent to Claude on each turn |
+| `messages` | id, conversation_id, role, content, created_at, meta | Role is user or assistant; meta holds "what this level did" (sources, tools, plan, check); full history is sent to Claude on each turn |
 
-**Not stored:** the API key (kept in `.env` on the server), tool results and plans (returned with the answer but not saved).
+**Not stored in the database:** the API key. It is kept only in `.env` on the computer running the app and never returned to the page in full.

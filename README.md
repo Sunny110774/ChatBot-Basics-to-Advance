@@ -1,6 +1,6 @@
 # ChatBot: Basics to Advance
 
-Five working chatbots in one app, one for each stage of AI evolution: **Basic rules, Generative AI, RAG, AI Automation and Agentic AI**. Ask the same question to each and see exactly what every level adds, and when it is worth using.
+Five working chatbots in one app, one for each stage of AI evolution, all serving the same fictional company (Bluewater Bank): **Basic rules, Generative AI, RAG, AI Automation and Agentic AI**. Ask the same question to each and see exactly what every level adds, and when it is worth using.
 
 > More AI does not automatically mean better AI. Start with the business requirement, then choose the minimum capability needed.
 
@@ -44,10 +44,13 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 
 - **01 Basic:** a guided menu of fixed questions; each answer offers the next questions as buttons, and typed questions are matched by keyword. Never calls an AI model.
 - **02 Generative AI:** sends the conversation to Claude with a short system prompt.
-- **03 RAG:** keyword retrieval over Markdown files in `knowledge/`; Claude answers only from the retrieved text and cites the file. If nothing matches, it says so instead of guessing.
-- **04 AI Automation:** keyword rules choose allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft); Claude summarises the results.
+- **03 RAG:** keyword retrieval (common words ignored) over the Markdown files in `knowledge/`; Claude answers only from the retrieved text and cites the file. If nothing matches, it says so and Claude is not called.
+- **04 AI Automation:** fixed rules choose allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft, block card, payment status); Claude summarises the results.
 - **05 Agentic AI:** Claude writes a short plan and picks tools; the app runs only allow-listed tools; Claude explains the results and verifies them.
-- **History:** every conversation is stored per mode in SQLite and can be reopened.
+- **History:** every conversation is stored per mode in SQLite and can be reopened, including what each level did.
+- **Shared company:** all five bots use the same fictional company, Bluewater Bank: the Basic menu, the five knowledge files and the demo tools state the same facts, so answers can be compared like for like.
+- **Transparency:** under every AI answer, a "What this level did" panel shows the sources used, tools run (with their mock results), the plan, blocked tools and the final check.
+- **Honest errors:** if Claude cannot be reached, the chat says why in plain words (invalid key, missing workspace ID, no credit, no internet) and how to fix it, with an Open Settings button.
 
 ## Quick start
 
@@ -55,7 +58,7 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 1. Install Python 3.10+ (tick "Add Python to PATH").
 2. Double-click `run_windows.bat`.
 3. First run only: paste your Anthropic API key (and workspace ID if your key needs one). It is saved to a local `.env` file.
-4. The browser opens http://127.0.0.1:8000.
+4. The browser opens http://127.0.0.1:8000. The badge at the top right shows whether Claude is really connected; click **Settings** to change the key, workspace ID or model and run a live connection test.
 
 **macOS / Linux**
 ```bash
@@ -73,7 +76,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources and refuses when nothing matches, only allow-listed tools ever run, history is saved, and failed requests recover cleanly. Tests run automatically on every push (GitHub Actions).
+The 16-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources and refuses off-topic questions, only allow-listed tools ever run, history and "what this level did" are saved, settings never return the key, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
 
 ## Project structure
 

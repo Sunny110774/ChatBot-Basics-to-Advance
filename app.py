@@ -1,3 +1,8 @@
+"""ChatBot - Basics to Advance: five chatbots, one per stage of AI evolution.
+
+All five work on one fictional company, Bluewater Bank, so their answers can be compared
+like for like: the same questions, the same knowledge files and the same demo tools.
+"""
 import os, re, json, sqlite3, uuid
 from pathlib import Path
 from datetime import datetime, timezone
@@ -10,15 +15,17 @@ import anthropic
 
 ROOT = Path(__file__).parent
 DB = Path(os.getenv("CHATBOT_DB", str(ROOT / "chat_history.db")))  # override for tests
+ENV_FILE = Path(os.getenv("CHATBOT_ENV", str(ROOT / ".env")))      # override for tests
 KD = ROOT / "knowledge"
+MODELS = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"]
+MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))
 
 
-# ---------- settings: environment variables, or a local .env file next to app.py ----------
+# ---------- settings: .env file next to app.py, editable from the in-app Settings screen ----------
 def load_env_file():
-    f = ROOT / ".env"
-    if not f.exists():
+    if not ENV_FILE.exists():
         return
-    for line in f.read_text(encoding="utf8").splitlines():
+    for line in ENV_FILE.read_text(encoding="utf8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -26,11 +33,34 @@ def load_env_file():
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-load_env_file()
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")
-MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))
+def save_env(values):
+    """Update or add KEY=value lines in .env, keeping any other lines as they are."""
+    lines = ENV_FILE.read_text(encoding="utf8").splitlines() if ENV_FILE.exists() else []
+    done = set()
+    for i, line in enumerate(lines):
+        k = line.split("=", 1)[0].strip()
+        if k in values:
+            lines[i] = f"{k}={values[k]}"
+            done.add(k)
+    lines += [f"{k}={v}" for k, v in values.items() if k not in done]
+    ENV_FILE.write_text("\n".join(lines) + "\n", encoding="utf8")
+    for k, v in values.items():
+        os.environ[k] = v
 
-app = FastAPI(title="ChatBot - Basics to advance")
+
+def model():
+    return os.getenv("ANTHROPIC_MODEL") or MODELS[0]
+
+
+def key_hint():
+    k = os.getenv("ANTHROPIC_API_KEY", "")
+    return f"{k[:10]}...{k[-4:]}" if len(k) > 16 else ""
+
+
+load_env_file()
+LAST_CHECK = {"status": "untested", "message": "Connection not tested yet.", "checked_at": None}
+
+app = FastAPI(title="ChatBot - Basics to Advance")
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 
 
@@ -47,6 +77,9 @@ def conn():
 with conn() as c:
     c.execute("CREATE TABLE IF NOT EXISTS conversations(id TEXT PRIMARY KEY,bot TEXT,title TEXT,created_at TEXT,updated_at TEXT)")
     c.execute("CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,conversation_id TEXT,role TEXT,content TEXT,created_at TEXT)")
+    cols = [r["name"] for r in c.execute("PRAGMA table_info(messages)").fetchall()]
+    if "meta" not in cols:  # older databases: add the column that stores "what this level did"
+        c.execute("ALTER TABLE messages ADD COLUMN meta TEXT")
 
 
 class NewConv(BaseModel):
@@ -59,17 +92,79 @@ class ChatReq(BaseModel):
     message: str
 
 
+class SettingsReq(BaseModel):
+    api_key: Optional[str] = ""
+    workspace_id: Optional[str] = ""
+    model: Optional[str] = ""
+
+
 BOTS = {"basic", "generative", "rag", "automation", "agentic"}
 
 
-# ---------- Claude ----------
+# ---------- Claude connection and plain-English errors ----------
+class ClaudeError(Exception):
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status, self.message = status, message
+
+
+FIX_KEY = "Open Settings (top right), paste a new key from console.anthropic.com > API keys, and click Save and test."
+
+
+def friendly(e):
+    """Turn an Anthropic SDK error into a reason plus the exact fix."""
+    if isinstance(e, ClaudeError):
+        return e
+    if isinstance(e, anthropic.APIConnectionError):
+        return ClaudeError(502, "Could not reach Anthropic. Check your internet connection, then try again.")
+    if isinstance(e, anthropic.APIStatusError):
+        code = getattr(e, "status_code", 0)
+        detail = (getattr(e, "message", "") or str(e))
+        low = detail.lower()
+        if code == 401:
+            return ClaudeError(401, "Anthropic rejected the API key: it is mistyped, deleted or expired. " + FIX_KEY)
+        if "workspace" in low:
+            return ClaudeError(400, "This key needs a workspace ID. Open Settings and paste your workspace ID (it starts with wrkspc_), or create the key inside a workspace.")
+        if "credit" in low or "billing" in low:
+            return ClaudeError(402, "Your Anthropic account has no credit left. Add credit in console.anthropic.com > Billing, then try again.")
+        if code == 403:
+            return ClaudeError(403, "This key is not allowed to use this model or workspace. Check the workspace ID in Settings, or choose another model.")
+        if code == 404:
+            return ClaudeError(404, f"The model '{model()}' is not available to this key. Choose another model in Settings.")
+        if code == 429:
+            return ClaudeError(429, "Too many requests or a usage limit was reached. Wait a minute, or check limits in console.anthropic.com.")
+        if code >= 500:
+            return ClaudeError(503, "Anthropic is busy or unavailable right now. Try again in a minute.")
+        return ClaudeError(502, f"Claude request failed ({code}): {detail}")
+    return ClaudeError(502, "Claude request failed for an unexpected reason. Check the server window for details.")
+
+
 def client():
     if not os.getenv("ANTHROPIC_API_KEY"):
-        raise HTTPException(503, "Configure ANTHROPIC_API_KEY on the server. See README.md.")
+        raise ClaudeError(400, "No API key is set. Open Settings (top right), paste your Anthropic API key and click Save and test.")
     headers = {}
-    if os.getenv("ANTHROPIC_WORKSPACE_ID"):  # only needed for keys not created inside a workspace
+    if os.getenv("ANTHROPIC_WORKSPACE_ID"):  # needed for user-linked keys (sk-ant-usr-...)
         headers["anthropic-workspace-id"] = os.environ["ANTHROPIC_WORKSPACE_ID"]
     return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], default_headers=headers or None)
+
+
+def record_check(ok, message):
+    LAST_CHECK.update(status="ok" if ok else "failed", message=message, checked_at=now())
+    return dict(LAST_CHECK)
+
+
+def test_connection():
+    """A real but free check: count the tokens of a one-word message (no answer is generated)."""
+    try:
+        c = client()
+        msgs = [{"role": "user", "content": "ping"}]
+        try:
+            c.messages.count_tokens(model=model(), messages=msgs)
+        except AttributeError:  # very old SDKs have no token counting; fall back to a 1-token reply
+            c.messages.create(model=model(), max_tokens=1, messages=msgs)
+        return record_check(True, f"Connected to Claude ({model()}).")
+    except Exception as e:
+        return record_check(False, friendly(e).message)
 
 
 def clean_messages(msgs):
@@ -90,29 +185,24 @@ def clean_messages(msgs):
 
 def llm(system, msgs):
     try:
-        r = client().messages.create(
-            model=MODEL, max_tokens=MAX_TOKENS, temperature=0.3,
-            system=system, messages=clean_messages(msgs),
-        )
+        r = client().messages.create(model=model(), max_tokens=MAX_TOKENS, temperature=0.3,
+                                     system=system, messages=clean_messages(msgs))
         text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
+        if LAST_CHECK["status"] != "ok":
+            record_check(True, f"Connected to Claude ({model()}).")
         return text or "No response was generated."
-    except HTTPException:
-        raise
-    except anthropic.APIStatusError as e:
-        detail = getattr(e, "message", "") or str(e)
-        if "workspace" in detail.lower():
-            detail += " — set ANTHROPIC_WORKSPACE_ID, or use a key created inside a workspace."
-        raise HTTPException(502, f"Claude request failed ({e.status_code}): {detail}")
-    except anthropic.APIConnectionError:
-        raise HTTPException(502, "Could not reach Anthropic. Check your internet connection.")
-    except Exception:
-        raise HTTPException(502, "Claude request failed. Check model access and server logs.")
+    except Exception as e:
+        err = friendly(e)
+        if err.status in (400, 401, 402, 403, 404):  # setup problems, not passing outages
+            record_check(False, err.message)
+        raise HTTPException(err.status, err.message)
 
 
 # ---------- storage ----------
-def save(cid, role, content):
+def save(cid, role, content, meta=None):
     with conn() as c:
-        c.execute("INSERT INTO messages(conversation_id,role,content,created_at) VALUES(?,?,?,?)", (cid, role, content, now()))
+        c.execute("INSERT INTO messages(conversation_id,role,content,created_at,meta) VALUES(?,?,?,?,?)",
+                  (cid, role, content, now(), json.dumps(meta) if meta else None))
         first = c.execute("SELECT content FROM messages WHERE conversation_id=? AND role='user' ORDER BY id LIMIT 1", (cid,)).fetchone()
         title = (first["content"][:40] + ("…" if len(first["content"]) > 40 else "")) if first else "New conversation"
         c.execute("UPDATE conversations SET title=?,updated_at=? WHERE id=?", (title, now(), cid))
@@ -120,40 +210,41 @@ def save(cid, role, content):
 
 def history(cid):
     with conn() as c:
-        return [dict(x) for x in c.execute("SELECT role,content FROM messages WHERE conversation_id=? ORDER BY id", (cid,)).fetchall()]
+        rows = c.execute("SELECT role,content,meta FROM messages WHERE conversation_id=? ORDER BY id", (cid,)).fetchall()
+    return [{"role": r["role"], "content": r["content"], "meta": json.loads(r["meta"]) if r["meta"] else None} for r in rows]
 
 
 # ---------- 01 Basic: fixed rules with a guided menu ----------
 # Each node: button label, fixed answer, follow-up options (node ids), keywords for typed questions.
 # Answers are demo content for a fictional bank and company, not real policies.
 BASIC_TREE = {
-    "menu": {"label": "Main menu", "answer": "Choose a topic below. This Basic bot only knows these fixed answers.",
+    "menu": {"label": "Main menu", "answer": "Welcome to Bluewater Bank (a fictional demo company). Choose a topic below; this Basic bot only knows these fixed answers.",
              "options": ["hours", "branches", "cards", "leave", "email"], "keywords": ["menu", "help", "start", "hi", "hello"]},
     # top level
-    "hours": {"label": "Banking hours", "answer": "This demo bank is open Monday to Friday, 9 AM to 5 PM. This is an example rule, not a real bank schedule.",
+    "hours": {"label": "Banking hours", "answer": "Bluewater Bank branches are open Monday to Friday, 9 AM to 5 PM. Online banking is available 24x7.",
               "options": ["holidays", "cutoff", "menu"], "keywords": ["banking hours", "bank hours", "opening hours", "working hours", "open", "timing"]},
-    "branches": {"label": "Branches and ATMs", "answer": "The demo bank has a fixed list of branches and ATMs. Pick what you need below.",
+    "branches": {"label": "Branches and ATMs", "answer": "Bluewater Bank has a fixed list of branches and ATMs. Pick what you need below.",
                  "options": ["nearest", "atm_limit", "menu"], "keywords": ["branch", "branches", "location", "locations", "atm"]},
     "cards": {"label": "Cards", "answer": "I can help with common card questions. Pick one below.",
               "options": ["block", "not_working", "menu"], "keywords": ["card", "cards"]},
-    "leave": {"label": "Leave policy", "answer": "Planned leave needs manager approval and should be requested 5 working days ahead (demo rule).",
+    "leave": {"label": "Leave policy", "answer": "Planned leave needs manager approval and should be requested 5 working days ahead.",
               "options": ["apply", "balance", "menu"], "keywords": ["leave policy", "leave", "vacation", "holiday leave", "time off"]},
     "email": {"label": "Write an email", "answer": "I have fixed email templates. Choose one and fill in the [brackets] yourself.",
               "options": ["leave_email", "status_email", "menu"], "keywords": ["email", "mail", "draft", "write"]},
     # second level
-    "holidays": {"label": "Holiday schedule", "answer": "The demo bank is closed on weekends and national public holidays. Online banking stays available.",
+    "holidays": {"label": "Holiday schedule", "answer": "Bluewater Bank branches are closed on weekends and national public holidays. Online banking stays available.",
                  "options": ["cutoff", "menu"], "keywords": ["holiday schedule", "public holiday", "closed"]},
-    "cutoff": {"label": "Same-day payment cut-off", "answer": "Payments submitted before 2 PM on a working day are processed the same day; later ones go the next working day (demo rule).",
+    "cutoff": {"label": "Same-day payment cut-off", "answer": "Payments submitted before 2 PM on a working day are processed the same day; later ones go the next working day.",
                "options": ["hours", "menu"], "keywords": ["cut-off", "cutoff", "same day", "same-day"]},
-    "nearest": {"label": "Find nearest branch", "answer": "Use the branch locator on the demo bank's website or app and enter your PIN code. A Basic bot cannot look up your location.",
+    "nearest": {"label": "Find nearest branch", "answer": "Use the branch locator on the Bluewater Bank website or app and enter your PIN code. A Basic bot cannot look up your location.",
                 "options": ["atm_limit", "menu"], "keywords": ["nearest", "near me", "closest"]},
-    "atm_limit": {"label": "ATM withdrawal limit", "answer": "The demo daily ATM withdrawal limit is 25,000 per card. Limits on real cards vary by account.",
+    "atm_limit": {"label": "ATM withdrawal limit", "answer": "The daily ATM withdrawal limit is 25,000 per card.",
                   "options": ["nearest", "menu"], "keywords": ["withdrawal limit", "atm limit", "cash limit"]},
     "block": {"label": "Block my card", "answer": "Call the 24x7 helpline or use App > Cards > Block card. A Basic bot can only tell you how; blocking it for you is an action, which is level 04 AI Automation.",
               "options": ["not_working", "menu"], "keywords": ["block", "lost", "stolen"]},
     "not_working": {"label": "Card not working", "answer": "Check that the card is not expired, blocked or over its limit, and that the PIN is correct. If it still fails, contact support.",
                     "options": ["block", "menu"], "keywords": ["not working", "declined", "failed", "card error"]},
-    "apply": {"label": "How do I apply?", "answer": "Apply in the HR portal: Leave > New request, choose dates and the leave type, then submit for manager approval (demo process).",
+    "apply": {"label": "How do I apply?", "answer": "Apply in the HR portal: Leave > New request, choose dates and the leave type, then submit for manager approval.",
               "options": ["balance", "leave_email", "menu"], "keywords": ["apply", "how do i apply", "request leave"]},
     "balance": {"label": "My leave balance", "answer": "A Basic bot cannot see your balance: that needs a lookup in the HR system, which is what level 04 AI Automation adds.",
                 "options": ["apply", "menu"], "keywords": ["balance", "how many days", "remaining"]},
@@ -187,36 +278,55 @@ def basic(q):
 
 
 # ---------- 03 RAG: keyword retrieval over knowledge/*.md ----------
+STOPWORDS = set("""a an and are as at be been but by can could do does for from has have how i if in is it its
+me my of on or our please should so than that the their them then there these they this to us was we were what
+when where which who why will with would you your about any into just not also more most some such only very""".split())
+
+
+def words(text):
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOPWORDS and len(w) > 1}
+
+
 def retrieve(q, k=3):
-    terms = set(re.findall(r"[a-z0-9]+", q.lower()))
+    """Rank blank-line-separated chunks by how many of the question's content words they contain."""
+    terms = words(q)
     hits = []
-    for f in KD.glob("*.md"):
+    if not terms:
+        return hits
+    for f in sorted(KD.glob("*.md")):
         for chunk in re.split(r"\n\s*\n", f.read_text(encoding="utf8")):
             chunk = chunk.strip()
             if not chunk:
                 continue
-            words = set(re.findall(r"[a-z0-9]+", chunk.lower()))
-            score = len(terms & words) / max(1, len(terms))
+            score = len(terms & words(chunk)) / len(terms)
             if score > 0:
                 hits.append({"score": round(score, 3), "source": f.name, "text": chunk})
     return sorted(hits, key=lambda x: x["score"], reverse=True)[:k]
 
 
-# ---------- 04/05 allow-listed demo tools ----------
-ALLOWED_TOOLS = {"leave_balance", "leave_policy", "search_knowledge", "create_ticket", "email_draft"}
+# ---------- 04/05 allow-listed demo tools (mock data; nothing outside the app changes) ----------
+ALLOWED_TOOLS = {"leave_balance", "leave_policy", "search_knowledge", "create_ticket", "email_draft",
+                 "block_card", "payment_status"}
 
 
 def tool(name, args):
     if name == "leave_balance":
-        return {"available_days": 8, "source": "mock demo data only; not connected to HR"}
+        return {"available_days": 8, "source": "mock HR data for the demo employee"}
     if name == "leave_policy":
-        return {"sources": retrieve("leave policy approval balance advance")}
+        return {"sources": retrieve("leave policy notice approval apply balance")}
     if name == "search_knowledge":
         return {"results": retrieve(args.get("query", ""))}
     if name == "create_ticket":
         return {"ticket_id": "DEMO-" + uuid.uuid4().hex[:8].upper(), "status": "created in demo only", "summary": str(args.get("summary", ""))[:300]}
     if name == "email_draft":
-        return {"status": "draft prepared; not sent", "subject": args.get("subject", "Draft email"), "body": args.get("body", "")[:1500]}
+        return {"status": "draft prepared; not sent", "subject": args.get("subject", "Draft email"), "body": str(args.get("body", ""))[:1500]}
+    if name == "block_card":
+        return {"status": "card marked as blocked in the demo only; no real card was changed",
+                "card": "demo card ending 4417", "next_step": "a replacement card would be ordered after the customer confirms"}
+    if name == "payment_status":
+        ref = str(args.get("reference") or "").upper() or "not provided"
+        return {"reference": ref, "status": "held for a routine fraud-prevention check (mock data)",
+                "expected": "released or returned within 1 working day", "note": "mock lookup; not a real payment system"}
     return {"error": "Tool not allow-listed"}
 
 
@@ -224,6 +334,30 @@ def parse_json(text):
     """Pull the first {...} object out of a reply, even if wrapped in prose or code fences."""
     m = re.search(r"\{.*\}", text, re.S)
     return json.loads(m.group(0)) if m else json.loads(text)
+
+
+def payment_ref(text):
+    m = re.search(r"\b(PAY-?\d{3,})\b", text, re.I)
+    return m.group(1).upper().replace("PAY", "PAY-").replace("PAY--", "PAY-") if m else ""
+
+
+def automation_tools(q, text):
+    """Fixed rules decide which tools run: the defining trait of automation (steps known in advance)."""
+    results = []
+    if any(x in q for x in ["leave", "vacation", "time off", "holiday"]):
+        results += [{"tool": "leave_balance", "result": tool("leave_balance", {})},
+                    {"tool": "leave_policy", "result": tool("leave_policy", {})}]
+    if "card" in q and any(x in q for x in ["block", "lost", "stolen", "freeze"]):
+        results.append({"tool": "block_card", "result": tool("block_card", {})})
+    if "payment" in q and any(x in q for x in ["status", "where", "track", "stuck", "pay-", "check"]):
+        results.append({"tool": "payment_status", "result": tool("payment_status", {"reference": payment_ref(text)})})
+    elif any(x in q for x in ["payment", "declined", "support"]):
+        results.append({"tool": "search_knowledge", "result": tool("search_knowledge", {"query": text})})
+    if "ticket" in q:
+        results.append({"tool": "create_ticket", "result": tool("create_ticket", {"summary": text})})
+    if any(x in q for x in ["email", "mail", "draft"]):
+        results.append({"tool": "email_draft", "result": tool("email_draft", {"subject": "Draft based on request", "body": "Please review before sending.\n\nRequest: " + text})})
+    return results
 
 
 # ---------- routes ----------
@@ -234,7 +368,40 @@ def home():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "provider": "Anthropic", "model": MODEL, "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY"))}
+    return {"status": "ok", "provider": "Anthropic", "model": model(),
+            "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY")), "connection": dict(LAST_CHECK)}
+
+
+@app.get("/api/settings")
+def get_settings():
+    return {"key_set": bool(os.getenv("ANTHROPIC_API_KEY")), "key_hint": key_hint(),
+            "workspace_id": os.getenv("ANTHROPIC_WORKSPACE_ID", ""), "model": model(), "models": MODELS}
+
+
+@app.post("/api/settings")
+def put_settings(b: SettingsReq):
+    values = {}
+    key = (b.api_key or "").strip()
+    if key:
+        if not key.startswith("sk-ant-") or len(key) < 30 or " " in key:
+            raise HTTPException(400, "That does not look like an Anthropic API key. It should start with sk-ant- and have no spaces.")
+        values["ANTHROPIC_API_KEY"] = key
+    ws = (b.workspace_id or "").strip()
+    if ws and not ws.startswith("wrkspc_"):
+        raise HTTPException(400, "The workspace ID should start with wrkspc_. Leave it empty if your key does not need one.")
+    values["ANTHROPIC_WORKSPACE_ID"] = ws
+    if b.model:
+        if b.model not in MODELS:
+            raise HTTPException(400, "Unknown model.")
+        values["ANTHROPIC_MODEL"] = b.model
+    save_env(values)
+    LAST_CHECK.update(status="untested", message="Settings saved; connection not tested yet.", checked_at=None)
+    return get_settings()
+
+
+@app.post("/api/settings/test")
+def settings_test():
+    return test_connection()
 
 
 @app.get("/api/basic/menu")
@@ -287,46 +454,50 @@ def chat(b: ChatReq):
 
     save(b.conversation_id, "user", b.message)
     prior = history(b.conversation_id)[:-1]
-    msgs = [{"role": m["role"], "content": m["content"]} for m in prior if m["role"] in ("user", "assistant")] + [{"role": "user", "content": b.message}]
+    msgs = [{"role": m["role"], "content": m["content"]} for m in prior] + [{"role": "user", "content": b.message}]
+    q = b.message.lower()
     meta = {"mode": b.bot, "sources": [], "tools": []}
 
     if b.bot == "basic":
         answer, meta["options"] = basic(b.message)
         meta["mode"] = "fixed_rules"
+        meta["did"] = "Matched your message to a fixed rule. No AI model was used."
 
     elif b.bot == "generative":
-        answer = llm("You are a helpful Generative AI demonstration chatbot. Answer accurately, be clear about uncertainty, and do not claim access to systems.", msgs)
+        answer = llm("You are the Generative AI demo assistant for Bluewater Bank, a fictional bank. "
+                     "Answer helpfully from general knowledge only. You have no access to Bluewater Bank's documents, "
+                     "systems or customer data, so never state its policies, balances or statuses as facts; "
+                     "say when an answer would need company information.", msgs)
+        meta["did"] = "Claude answered from your question and this chat only. No company documents, no tools."
 
     elif b.bot == "rag":
         hits = retrieve(b.message)
-        meta["sources"] = [{"source": h["source"], "score": h["score"]} for h in hits]
+        meta["sources"] = [{"source": h["source"], "score": h["score"], "text": h["text"][:300]} for h in hits]
+        files = len(list(KD.glob("*.md")))
         if not hits:
-            answer = "I couldn't find relevant information in the demo knowledge base, so I won't invent a policy answer. Try asking about leave policy, payment support, or escalation."
+            answer = ("I couldn't find anything about that in Bluewater Bank's documents, so I won't guess. "
+                      "Try asking about leave, payments, cards, branches, banking hours or escalation.")
+            meta["did"] = f"Searched {files} knowledge files and found nothing relevant, so Claude was not called."
         else:
             context = "\n\n".join("[Source: " + h["source"] + "]\n" + h["text"] for h in hits)
-            answer = llm("Answer only from this retrieved context. If it does not support the answer, say so. Cite source filenames. Context:\n" + context, msgs)
+            answer = llm("You answer questions for Bluewater Bank (fictional) using ONLY the retrieved context below. "
+                         "If the context does not contain the answer, say so plainly. Cite the source file names in brackets. Context:\n" + context, msgs)
+            meta["did"] = f"Searched {files} knowledge files, picked the {len(hits)} best-matching passages, and told Claude to answer only from them."
 
     elif b.bot == "automation":
-        q = b.message.lower()
-        results = []
-        if any(x in q for x in ["leave", "vacation", "time off"]):
-            results += [{"tool": "leave_balance", "result": tool("leave_balance", {})},
-                        {"tool": "leave_policy", "result": tool("leave_policy", {})}]
-        if any(x in q for x in ["payment", "declined", "ticket", "support"]):
-            results.append({"tool": "search_knowledge", "result": tool("search_knowledge", {"query": b.message})})
-            if "ticket" in q:
-                results.append({"tool": "create_ticket", "result": tool("create_ticket", {"summary": b.message})})
-        if any(x in q for x in ["email", "draft", "manager"]):
-            results.append({"tool": "email_draft", "result": tool("email_draft", {"subject": "Draft based on request", "body": "Please review before sending.\n\nRequest: " + b.message})})
+        results = automation_tools(q, b.message)
         if not results:
             results = [{"tool": "search_knowledge", "result": tool("search_knowledge", {"query": b.message})}]
         meta["tools"] = results
-        answer = llm("Summarize these tool results faithfully. Clearly state mock/demo data and never imply external systems were changed. Tools:\n" + json.dumps(results), msgs)
+        answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
+                     "Say clearly that the data is mock demo data and that nothing in a real system was changed. Tools:\n" + json.dumps(results), msgs)
+        meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
 
     else:  # agentic
         plan = llm(
-            "You are an agentic AI learning demo. Make a 2-4 step plan and select relevant tools only from: "
-            "leave_balance, leave_policy, search_knowledge, create_ticket, email_draft. "
+            "You are Bluewater Bank's Agentic AI demo (a fictional bank). Make a 2-4 step plan to reach the user's goal and pick tools "
+            "only from: leave_balance, leave_policy, search_knowledge (args: query), create_ticket (args: summary), "
+            "email_draft (args: subject, body), block_card, payment_status (args: reference). "
             "Return JSON only, with no other text: "
             "{\"plan\":[...],\"tools\":[{\"name\":\"...\",\"args\":{}}],\"verification\":\"...\"}. "
             "Never propose real external actions.", msgs)
@@ -335,16 +506,20 @@ def chat(b: ChatReq):
         except Exception:
             obj = {"plan": ["Understand goal", "Use relevant demo tools", "Review results"], "tools": [],
                    "verification": "Could not parse a structured plan; no tools run."}
-        observed = []
+        observed, skipped = [], []
         for item in obj.get("tools", [])[:4]:
             if isinstance(item, dict) and item.get("name") in ALLOWED_TOOLS:
                 observed.append({"tool": item["name"], "result": tool(item["name"], item.get("args") or {})})
+            elif isinstance(item, dict) and item.get("name"):
+                skipped.append(str(item["name"]))
         meta["plan"] = obj.get("plan", [])
         meta["tools"] = observed
+        meta["skipped"] = skipped
         meta["verification"] = obj.get("verification", "")
-        answer = llm("Explain the plan, tool observations and verification honestly. State what remains if unavailable. "
-                     "No real-world action is taken. Plan/results:\n"
+        answer = llm("You are Bluewater Bank's Agentic AI demo. Explain the plan, what each tool returned and whether the goal is met, honestly. "
+                     "Say what still needs a human decision. No real-world action was taken; all data is mock. Plan and results:\n"
                      + json.dumps({"plan": meta["plan"], "tools": observed, "verification": meta["verification"]}), msgs)
+        meta["did"] = "Claude planned the steps and chose tools; the app ran only allow-listed tools; Claude then checked the results against the goal."
 
-    save(b.conversation_id, "assistant", answer)
+    save(b.conversation_id, "assistant", answer, meta)
     return {"answer": answer, "metadata": meta}

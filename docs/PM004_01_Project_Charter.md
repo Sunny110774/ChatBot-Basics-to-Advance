@@ -121,7 +121,7 @@ Each level keeps what the previous one could do and adds one capability: rules, 
 | --- | --- | --- | --- | --- |
 | 01 | Basic chatbot | User -> menu or rule match -> predefined response | Fixed, predictable answers | Guided menu of 16 demo topics (bank hours, branches, cards, leave, email templates) with follow-up buttons; falls back to the main menu |
 | 02 | Generative AI | Prompt -> LLM -> generated response | Understands free text and writes new content | Claude with a short system prompt |
-| 03 | RAG | Question -> retrieve knowledge -> LLM -> grounded answer | Answers from your own documents, with sources | Keyword retrieval over 3 demo policy files; refuses when nothing matches |
+| 03 | RAG | Question -> retrieve knowledge -> LLM -> grounded answer | Answers from your own documents, with sources | Keyword retrieval over 5 Bluewater Bank documents; refuses when nothing matches |
 | 04 | AI Automation | Request -> LLM -> tool or API -> action -> result | Does defined tasks through tools | Keyword rules call allow-listed demo tools; Claude summarises results |
 | 05 | Agentic AI | Goal -> plan -> tools -> observe and adapt -> verify -> result | Works out the steps itself towards a goal | Claude writes a plan, picks allowed tools, the app runs them, Claude explains and verifies |
 
