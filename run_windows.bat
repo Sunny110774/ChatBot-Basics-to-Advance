@@ -31,5 +31,5 @@ set /p WS=Workspace ID starting wrkspc_ (press Enter to skip):
 echo Installing or checking packages, please wait...
 %PY% -m pip install -q -r requirements.txt
 start "" cmd /c "timeout /t 5 >nul & start http://127.0.0.1:8000"
-%PY% -m uvicorn app:app --reload
+%PY% -m uvicorn app:app
 pause
