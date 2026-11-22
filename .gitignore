@@ -1,0 +1,17 @@
+# Secrets and local data: never commit
+.env
+chat_history.db
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
