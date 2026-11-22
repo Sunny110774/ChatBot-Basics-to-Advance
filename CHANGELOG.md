@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 - 2026-11-22
+
+- RAG citations: answers now use small numbered markers ([1], [2]) instead of file names, with a **Sources** list under the answer showing each document's readable title; click a source to see the exact passage used. One number per document.
+- Retrieval no longer counts a document's title line as a passage.
+
 ## 0.5.0 - 2026-11-22
 
 One workflow across all five bots.

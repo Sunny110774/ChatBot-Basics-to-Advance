@@ -12,7 +12,7 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 | --- | --- | --- | --- | --- | --- |
 | 01 | Basic Chatbot | Guided menu: pick a topic, then follow-up buttons; typed questions matched by keyword; anything else returns the main menu | No | Click **Cards**, then **Block my card** | Follow-up buttons, mode: fixed_rules |
 | 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to my manager asking for two days' leave next week" | "What this level did" |
-| 03 | RAG | Finds matching text in `knowledge/` and answers only from it, naming the file | Yes | "What is the leave policy?" | "What this level did": sources and match % |
+| 03 | RAG | Finds matching text in `knowledge/` and answers only from it, with numbered citations and a Sources list (readable titles; click to see the passage) | Yes | "What is the leave policy?" | "What this level did": sources and match % |
 | 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
 | 05 | Agentic AI | Claude plans 2 to 4 steps, picks allowed demo tools, the app runs them, Claude explains and verifies | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
 

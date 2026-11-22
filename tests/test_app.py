@@ -114,9 +114,13 @@ def test_generative_calls_claude(env):
 def test_rag_cites_sources_and_refuses_without_match(env):
     _, client, calls = env
     _, r = ask(client, "rag", "What is the leave policy?")
-    sources = [s["source"] for s in r.json()["metadata"]["sources"]]
-    assert "leave_policy.md" in sources
-    assert "leave_policy.md" in calls[-1]["system"]
+    src = r.json()["metadata"]["sources"]
+    assert src[0]["n"] == 1 and src[0]["source"] == "leave_policy.md"
+    assert src[0]["title"] == "Bluewater Bank: leave policy for employees"  # readable title, not a file name
+    assert "[1] Bluewater Bank: leave policy for employees" in calls[-1]["system"]
+    assert "leave_policy.md" not in calls[-1]["system"]  # Claude cites numbers, never file names
+    assert len({s["source"] for s in src}) == len(src)  # one number per document
+    assert not any(p.startswith("#") for s in src for p in s["passages"])  # titles are not passages
     n = len(calls)
     _, r = ask(client, "rag", "zzqx")
     assert "couldn't find" in r.json()["answer"]

@@ -322,12 +322,33 @@ def retrieve(q, k=3):
     for f in sorted(KD.glob("*.md")):
         for chunk in re.split(r"\n\s*\n", f.read_text(encoding="utf8")):
             chunk = chunk.strip()
-            if not chunk:
+            if not chunk or chunk.startswith("#"):  # skip empty chunks and document titles
                 continue
             score = len(terms & words(chunk)) / len(terms)
             if score > 0:
                 hits.append({"score": round(score, 3), "source": f.name, "text": chunk})
     return sorted(hits, key=lambda x: x["score"], reverse=True)[:k]
+
+
+def doc_title(filename):
+    """Readable title from a knowledge file's first heading, e.g. 'Bluewater Bank: cards'."""
+    try:
+        first = (KD / filename).read_text(encoding="utf8").splitlines()[0]
+    except (OSError, IndexError):
+        return filename
+    return re.sub(r"\s*\(fictional demo company\)\s*$", "", first.lstrip("# ").strip()) or filename
+
+
+def number_sources(hits):
+    """Group passages by document and number the documents [1], [2], ... in order of relevance."""
+    docs = []
+    for h in hits:
+        d = next((x for x in docs if x["source"] == h["source"]), None)
+        if not d:
+            d = {"n": len(docs) + 1, "source": h["source"], "title": doc_title(h["source"]), "score": h["score"], "passages": []}
+            docs.append(d)
+        d["passages"].append(h["text"])
+    return docs
 
 
 # ---------- 04/05 allow-listed demo tools (mock data; nothing outside the app changes) ----------
@@ -506,18 +527,21 @@ def chat(b: ChatReq):
 
     elif b.bot == "rag":
         hits = retrieve(b.message)
-        meta["sources"] = [{"source": h["source"], "score": h["score"], "text": h["text"][:300]} for h in hits]
+        docs = number_sources(hits)
+        meta["sources"] = [{"n": d["n"], "title": d["title"], "source": d["source"], "score": d["score"],
+                            "passages": [p[:400] for p in d["passages"]]} for d in docs]
         files = len(list(KD.glob("*.md")))
         if not hits:
             answer = ("I couldn't find anything about that in Bluewater Bank's documents, so I won't guess. "
                       "Try asking about leave, payments, cards, branches, banking hours or escalation.")
             meta["did"] = f"Searched {files} knowledge files and found nothing relevant, so Claude was not called."
         else:
-            context = "\n\n".join("[Source: " + h["source"] + "]\n" + h["text"] for h in hits)
-            answer = llm("You answer questions for Bluewater Bank (fictional) using ONLY the retrieved context below. "
-                         "If the context does not contain the answer, say so plainly. Cite the source file names in brackets." + FOLLOW_UPS
+            context = "\n\n".join(f"[{d['n']}] {d['title']}\n" + "\n".join(d["passages"]) for d in docs)
+            answer = llm("You answer questions for Bluewater Bank (fictional) using ONLY the numbered sources below. "
+                         "If they do not contain the answer, say so plainly. After each fact, cite its source number in square brackets, "
+                         "for example [1] or [1][2]. Never cite file names and do not add a list of sources; the app shows them." + FOLLOW_UPS
                          + " The follow-up questions must be answerable from Bluewater Bank's documents.\n\nContext:\n" + context, msgs)
-            meta["did"] = f"Searched {files} knowledge files, picked the {len(hits)} best-matching passages, and told Claude to answer only from them."
+            meta["did"] = f"Searched {files} knowledge files, picked the {len(hits)} best-matching passages from {len(docs)} document(s), and told Claude to answer only from them and cite them by number."
 
     elif b.bot == "automation":
         results = automation_tools(q, b.message)
