@@ -26,6 +26,7 @@ class FakeMessages:
 
     def create(self, **kw):
         self.calls.append(kw)
+        assert "temperature" not in kw  # deprecated on current Claude models
         roles = [m["role"] for m in kw["messages"]]
         # Claude requires alternating turns that start with the user
         assert roles[0] == "user"

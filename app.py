@@ -185,7 +185,7 @@ def clean_messages(msgs):
 
 def llm(system, msgs):
     try:
-        r = client().messages.create(model=model(), max_tokens=MAX_TOKENS, temperature=0.3,
+        r = client().messages.create(model=model(), max_tokens=MAX_TOKENS,
                                      system=system, messages=clean_messages(msgs))
         text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
         if LAST_CHECK["status"] != "ok":

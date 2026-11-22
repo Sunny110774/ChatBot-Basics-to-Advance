@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1 - 2026-11-22
+
+- Fixed: requests failed with "`temperature` is deprecated for this model" on current Claude models. The app no longer sends a temperature setting.
+
 ## 0.4.0 - 2026-11-22
 
 Made the five bots behave like one coherent product.
