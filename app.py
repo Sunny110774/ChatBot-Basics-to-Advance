@@ -494,8 +494,24 @@ def automation_tools(q, text):
     if "ticket" in q:
         results.append({"tool": "create_ticket", "result": tool("create_ticket", {"summary": text})})
     if any(x in q for x in ["email", "mail", "draft"]):
-        results.append({"tool": "email_draft", "result": tool("email_draft", {"subject": "Draft based on request", "body": "Please review before sending.\n\nRequest: " + text})})
+        results.append({"tool": "email_draft", "result": tool("email_draft", email_template(q, text))})
     return results
+
+
+def email_template(q, text):
+    """Automation drafts from a fixed, approved template (the same ones Basic shows), filling in what it knows."""
+    if "card" in q:
+        key = "card_email"
+    elif "payment" in q or "pay-" in q:
+        key = "payment_email"
+    else:
+        return {"subject": "Request to Bluewater Bank",
+                "body": "Dear Bluewater Bank support,\n\n" + text.strip() + "\n\nRegards,\n[Your name]\n[Registered phone number]"}
+    subject, body = BASIC_TREE[key]["answer"].split("\n\n", 1)
+    ref = payment_ref(text)
+    if ref:
+        subject, body = subject.replace("[reference]", ref), body.replace("[reference]", ref)
+    return {"subject": subject.removeprefix("Subject: "), "body": body}
 
 
 # ---------- human approval for actions that cannot be undone ----------

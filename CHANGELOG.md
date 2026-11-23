@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-11-23
+- **Automation's email drafts use the approved templates.** Before, level 04's "draft an email" step produced a placeholder that only repeated the request (found in the evaluation run, PM004_10). It now fills the same missing-card and payment-update templates that level 01 shows, with the payment reference filled in when it is known.
+- **New docs:** PM004_02 Lifecycle Framework, PM004_03 Project Plan and PM004_10 Evaluation. PM004_07 now has measured token use and cost per bot.
+- 36 tests.
+
 ## 1.0.0 - 2026-11-23
 - **Released.** Live demo (Prod): https://chatbot-basics-to-advance.onrender.com, deployed on Render from `main`; UAT from `uat`. Both tested live: RAG answers with citations, the agent shows Plan / Act / Verify, hosted mode on (settings locked, private chats, daily caps).
 - Presentation and README carry the live link.

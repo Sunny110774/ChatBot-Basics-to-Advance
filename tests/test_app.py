@@ -508,3 +508,19 @@ def test_local_mode_has_no_caps(env):
     app, client, _ = env
     assert not app.HOSTED and app.DAILY_CALLS == 0 and app.VISITOR_DAILY_CALLS == 0
     assert client.get("/api/health").json()["hosted"] is False
+
+
+def test_automation_email_uses_approved_templates(env):
+    app, client, _ = env
+    card = app.email_template("draft an email to the bank reporting my missing card.", "Draft an email to the bank reporting my missing card.")
+    assert card["subject"] == "Missing card: please block and replace"
+    assert "Never include your full card number" in card["body"]
+    pay = app.email_template("draft an email to the bank asking for an update on payment pay-1042.",
+                             "Draft an email to the bank asking for an update on payment PAY-1042.")
+    assert pay["subject"] == "Update needed on payment PAY-1042"
+    assert "reference PAY-1042" in pay["body"] and "[reference]" not in pay["body"]
+    other = app.email_template("draft an email about my statement", "Draft an email about my statement")
+    assert other["subject"] == "Request to Bluewater Bank" and "Request:" not in other["body"]
+    _, r = ask(client, "automation", "Draft an email to the bank reporting my missing card.")
+    draft = [t for t in r.json()["metadata"]["tools"] if t["tool"] == "email_draft"][0]["result"]
+    assert draft["subject"] == "Missing card: please block and replace"

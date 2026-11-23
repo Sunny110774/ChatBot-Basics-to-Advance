@@ -94,7 +94,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The 35-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources, drops weak matches and refuses off-topic questions, only allow-listed tools ever run, a card is never blocked without a Yes, the agent looks before it acts and shows Plan / Act / Verify, token use is recorded and history is capped, settings never return the key, the hosted demo keeps each visitor's chats private and enforces daily caps, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
+The 36-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources, drops weak matches and refuses off-topic questions, only allow-listed tools ever run, a card is never blocked without a Yes, the agent looks before it acts and shows Plan / Act / Verify, token use is recorded and history is capped, settings never return the key, the hosted demo keeps each visitor's chats private and enforces daily caps, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
 
 ## Project structure
 
