@@ -37,6 +37,23 @@ One app where the same question can be put to five chatbots; each level keeps wh
 
 Every conversation is saved, demo tools never touch real systems, and a test suite checks each level's safety rules on every change.
 
+### Guardrails
+
+**Guardrails are built in, enforced in code and covered by tests; they are not left to the prompt alone.** These are the controls that keep a live AI system safe, grounded and affordable.
+
+| Type | Guardrail in this app |
+| --- | --- |
+| Input | Message length limit on the public demo; empty messages and unknown bots rejected |
+| Grounding | RAG answers only from retrieved passages, cites each one, and refuses when nothing relevant is found; weak matches are dropped |
+| Action | Tool allow-list; read-only tools run first and actions only after the decision step; Yes / No approval before anything irreversible; a No runs nothing |
+| Safe failure | If the agent's plan or decision cannot be read, it takes no action and shows the raw reply |
+| Scope | The agent may not widen the user's goal or raise tickets the documents already answer |
+| Cost and abuse | Daily caps on Claude calls (whole app and per visitor), history cap, output token caps |
+| Security and privacy | API key only on the server; Settings locked on the public demo; each visitor sees only their own chats; demo data and mock tools only |
+| Transparency | "What this level did" shows sources, tools, decision, checks and cost for every answer |
+
+**Not built yet (next for any live use):** prompt-injection checks on document text, masking of personal data before it reaches the model, moderation of inputs and outputs, and an automated evaluation set.
+
 ## 3. Business cases by level
 
 Each level pays off for a different kind of problem. The business cases below are illustrative and show where the value comes from and which measure it moves.

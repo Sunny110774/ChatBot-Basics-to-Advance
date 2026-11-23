@@ -6,6 +6,8 @@ Every Claude call is paid by the token, so this guide records how PM004 keeps to
 
 The same techniques apply when the bot is rebuilt or integrated for internal employees (checking leave and other policies, sending out emails): an employee assistant answers far more questions a day, so the savings grow with it.
 
+Cost is one of the guardrails of a live AI system: the daily call caps, history cap and output token caps below sit alongside the safety guardrails listed in the README and charter (section 6.7).
+
 **At a glance**
 - **Rule 1:** don't call the model when rules or data can answer.
 - **Rule 2:** send the model only what it needs (relevant passages, recent turns).

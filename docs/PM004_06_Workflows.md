@@ -78,6 +78,21 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 | An irreversible action is chosen (block_card), by rules (04) or by the agent's plan (05) | Holds it and asks for approval; other safe steps still run | "Please confirm…" with **Yes** / **No** buttons | Yes |
 | User declines the action | Runs nothing and makes no Claude call | "Nothing was changed" | Yes |
 
+**Guardrails at a glance.** These are the controls that keep a live AI system safe, grounded and affordable.
+
+| Type | Guardrail in this app |
+| --- | --- |
+| Input | Message length limit on the public demo; empty messages and unknown bots rejected |
+| Grounding | RAG answers only from retrieved passages, cites each one, and refuses when nothing relevant is found; weak matches are dropped |
+| Action | Tool allow-list; read-only tools run first and actions only after the decision step; Yes / No approval before anything irreversible; a No runs nothing |
+| Safe failure | If the agent's plan or decision cannot be read, it takes no action and shows the raw reply |
+| Scope | The agent may not widen the user's goal or raise tickets the documents already answer |
+| Cost and abuse | Daily caps on Claude calls (whole app and per visitor), history cap, output token caps |
+| Security and privacy | API key only on the server; Settings locked on the public demo; each visitor sees only their own chats; demo data and mock tools only |
+| Transparency | "What this level did" shows sources, tools, decision, checks and cost for every answer |
+
+**Not built yet (next for any live use):** prompt-injection checks on document text, masking of personal data before it reaches the model, moderation of inputs and outputs, and an automated evaluation set.
+
 ## 5. Interfaces and data
 
 The page talks to eleven small API endpoints, and two SQLite tables hold all conversations.

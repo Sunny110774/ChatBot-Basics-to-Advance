@@ -136,6 +136,23 @@ Results vary slightly between runs for modes 02 to 05.
 | Change the model | `ANTHROPIC_MODEL` in `.env` | Restart |
 | Run the tests | `pip install -r requirements-dev.txt` then `pytest` | No key or internet needed |
 
+**Guardrails**
+
+**Guardrails are built in, enforced in code and covered by tests; they are not left to the prompt alone.** These are the controls that keep a live AI system safe, grounded and affordable.
+
+| Type | Guardrail in this app |
+| --- | --- |
+| Input | Message length limit on the public demo; empty messages and unknown bots rejected |
+| Grounding | RAG answers only from retrieved passages, cites each one, and refuses when nothing relevant is found; weak matches are dropped |
+| Action | Tool allow-list; read-only tools run first and actions only after the decision step; Yes / No approval before anything irreversible; a No runs nothing |
+| Safe failure | If the agent's plan or decision cannot be read, it takes no action and shows the raw reply |
+| Scope | The agent may not widen the user's goal or raise tickets the documents already answer |
+| Cost and abuse | Daily caps on Claude calls (whole app and per visitor), history cap, output token caps |
+| Security and privacy | API key only on the server; Settings locked on the public demo; each visitor sees only their own chats; demo data and mock tools only |
+| Transparency | "What this level did" shows sources, tools, decision, checks and cost for every answer |
+
+**Not built yet (next for any live use):** prompt-injection checks on document text, masking of personal data before it reaches the model, moderation of inputs and outputs, and an automated evaluation set.
+
 **Safety rules**
 - Demo data only; never paste real client, payment or personal data.
 - Tools stay mock: nothing is sent, submitted or booked.

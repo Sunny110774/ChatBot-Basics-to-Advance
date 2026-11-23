@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.2 - 2026-11-23
+- **Guardrails section in every document:** the controls already built (input, grounding, action, safe failure, scope, cost and abuse, security and privacy, transparency) listed in one place, with the gaps still to close for live use (prompt-injection checks, personal-data masking, moderation, evaluation set). README and charter no longer describe guardrails as future-only.
+
 ## 0.9.1 - 2026-11-23
 - Every document now states that the same bot can be rebuilt or integrated for internal employees (check leave and other policies, send out emails), with what each level would do for staff and what changes to make it real.
 
