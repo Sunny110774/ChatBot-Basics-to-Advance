@@ -19,8 +19,8 @@ It is part of the **Learning with Naveen** module on the evolution of AI, and wa
 | 01 | Basic chatbot | User -> menu or rule match -> fixed response + next options | Exact, predictable answers | FAQs, regulated wording, menus |
 | 02 | Generative AI | Prompt -> LLM -> generated response | Understands free text, writes new content | Drafting, summarising, explaining |
 | 03 | RAG | Question -> retrieve documents -> LLM -> grounded answer | Answers from your own documents, with sources | Policies, SOPs, knowledge bases |
-| 04 | AI Automation | Request -> LLM -> tool -> action -> result | Carries out defined tasks | Tickets, lookups, recurring reports |
-| 05 | Agentic AI | Goal -> plan -> tools -> observe -> verify -> result | Works out the steps towards a goal | Investigations, multi-step goals, with human approval |
+| 04 | AI Automation | Request -> rules pick tools -> action -> Claude summarises | Carries out defined tasks | Tickets, lookups, recurring reports |
+| 05 | Agentic AI | Goal -> plan -> look, then decide and act -> verify -> result | Decides its next step from what it finds | Investigations, multi-step goals, with human approval |
 
 Real-world examples for each level, and where each is the wrong choice, are in the [project charter, section 6.2](docs/PM004_01_Project_Charter.md#62-where-each-type-is-most-useful).
 
@@ -28,11 +28,11 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 
 | Level | "Can I take two days of leave next week?" |
 | --- | --- |
-| 01 Basic | Answers only if that exact rule was programmed; otherwise a fallback |
-| 02 Generative AI | A sensible general answer, but does not know the company's policy |
-| 03 RAG | Quotes the actual leave policy and cites the file |
-| 04 AI Automation | Also checks the leave balance and prepares the request |
-| 05 Agentic AI | Checks policy, balance and calendar, suggests dates, verifies, asks before submitting |
+| 01 Basic | A fixed answer: leave needs approval and 5 working days' notice; no model used |
+| 02 Generative AI | Sensible general advice, but it does not know Bluewater Bank's policy or your balance |
+| 03 RAG | Quotes the actual leave policy with a numbered citation and the source passage |
+| 04 AI Automation | Rules run the leave balance and leave policy tools (mock data); Claude summarises |
+| 05 Agentic AI | Plans, looks up balance and policy, decides no action is needed and verifies; its "Why an agent here" note can say a lower level would have done |
 
 ### Choosing the level
 
@@ -49,8 +49,8 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 - **05 Agentic AI:** a visible **Plan -> Act -> Verify** workflow on every answer, with a plain-language "Why an agent here" note (which honestly says when a simpler level would have done). Act is a look -> decide loop. Claude plans and runs **read-only lookups** first, sees what they returned, then **decides** whether any action (ticket, email, card) is really needed. The app runs only allow-listed tools and holds any irreversible step until the user approves it. The reply is short and customer-facing; the plan, lookups, decision and check appear in "What this level did".
 - **History:** every conversation is stored per mode in SQLite and can be reopened, including what each level did.
 - **Shared company:** all five bots use the same fictional company, Bluewater Bank: the Basic menu, the five knowledge files and the demo tools state the same facts, so answers can be compared like for like.
-- **Same workflow in every bot:** all five open with the same five topics (Banking hours, Branches and ATMs, Cards, Leave policy, Write an email), and each topic opens the same short list of questions in every bot; nothing is sent until you pick one, so levels can be compared like for like. Every answer ends with follow-up buttons: fixed ones in level 01, three suggested by Claude in levels 02 to 05, plus Main menu.
-- **Transparency:** under every AI answer, a "What this level did" panel shows the sources used, tools run (with their mock results), the plan, blocked tools and the final check.
+- **Same workflow in every bot:** all five open with the same five topics (Banking hours, Branches and ATMs, Cards, Leave policy, Write an email), and each topic opens the same short list of questions in every bot; nothing is sent until you pick one, so levels can be compared like for like. Every answer ends with follow-up buttons plus Main menu: fixed in levels 01 and 04, suggested by Claude in 02, 03 and 05. In 05 each topic also offers a gold **agent goal**, and a "Goals for the agent" strip stays above the message box.
+- **Transparency:** under every AI answer, a "What this level did" panel shows the sources used, tools run (with their mock results), blocked tools, the agent's decision and checks, and the **cost**: Claude calls and input/output tokens per step.
 - **Honest errors:** if Claude cannot be reached, the chat says why in plain words (invalid key, missing workspace ID, no credit, no internet) and how to fix it, with an Open Settings button.
 
 ## Quick start
@@ -77,7 +77,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The 16-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources and refuses off-topic questions, only allow-listed tools ever run, history and "what this level did" are saved, settings never return the key, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
+The 31-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources, drops weak matches and refuses off-topic questions, only allow-listed tools ever run, a card is never blocked without a Yes, the agent looks before it acts and shows Plan / Act / Verify, token use is recorded and history is capped, settings never return the key, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
 
 ## Project structure
 

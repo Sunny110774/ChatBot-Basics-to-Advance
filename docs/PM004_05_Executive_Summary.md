@@ -1,6 +1,6 @@
 # PM004_05 Executive Summary: ChatBot - Basics to Advance
 
-22 Nov 2026 · Naveen Nigam
+23 Nov 2026 · Naveen Nigam
 
 ChatBot - Basics to Advance is a working app with five chatbots, one for each stage of AI evolution, that answer the same question side by side. It turns a common business question, "which kind of AI do we actually need?", into something people can see and test. The message it proves: more AI does not automatically mean better AI; start with the business requirement and choose the minimum capability needed.
 
@@ -9,9 +9,9 @@ ChatBot - Basics to Advance is a working app with five chatbots, one for each st
 | What | One web app, five chatbots: Basic rules, Generative AI, RAG, AI Automation, Agentic AI |
 | For whom | Business leaders, product and delivery teams, and people starting their AI journey |
 | Built with | Python, FastAPI, SQLite, Anthropic Claude API, pytest, GitHub Actions |
-| Status | Working prototype; offline test suite passing; live verification is the next phase |
+| Status | Working prototype running live on Claude; 31 offline tests passing; capturing live results is the current step |
 | Owner | Naveen Nigam (product owner, project manager and delivery lead) |
-| Project documents | [PM004_01 Charter](PM004_01_Project_Charter.md), [PM004_04 Runbook](PM004_04_Runbook.md), [PM004_06 Workflows](PM004_06_Workflows.md) |
+| Project documents | [PM004_01 Charter](PM004_01_Project_Charter.md), [PM004_04 Runbook](PM004_04_Runbook.md), [PM004_06 Workflows](PM004_06_Workflows.md), [PM004_07 Token Optimisation](PM004_07_Token_Optimisation.md) |
 
 ## 1. The problem
 
@@ -33,7 +33,7 @@ One app where the same question can be put to five chatbots; each level keeps wh
 | 02 | Generative AI | Generation | Understands free text and writes, but knows nothing about your company |
 | 03 | RAG | Your knowledge | Answers only from your own documents and names the source |
 | 04 | AI Automation | Actions | Carries out defined tasks through tools, such as raising a ticket |
-| 05 | Agentic AI | Goal-driven steps | Plans its own steps towards a goal, uses tools, checks the result, asks before acting |
+| 05 | Agentic AI | Goal-driven steps | Plans, looks things up, decides whether to act from what it finds, verifies against the goal; asks before anything irreversible |
 
 Every conversation is saved, demo tools never touch real systems, and a test suite checks each level's safety rules on every change.
 
@@ -72,15 +72,19 @@ Use the simplest level that fully solves the problem, and move up only when the 
 
 ## 5. Status and next steps
 
-The prototype is built and passes its offline tests; live verification with a shared scenario set is the next phase.
+The prototype runs live on Claude and passes 31 offline tests; capturing live results across all five levels is the current step.
 
-**Done (Phase 0, 22 Nov 2026)**
-- All five levels implemented in one app on the Anthropic Claude API, with saved conversation history
-- Offline test suite of 9 tests passing, covering every level and its safety rules (for example, Basic never calls the model; only allow-listed tools run)
-- Project charter, runbook, workflows, architecture, decision guide and roadmap published
+**Done (Phase 0, 22 to 23 Nov 2026)**
+- All five levels implemented in one app on the Anthropic Claude API, with saved conversation history, and running live
+- Same topics and questions in every bot, so levels can be compared like for like
+- Human approval before anything irreversible (blocking a card), in Automation and Agentic modes
+- Agentic level rebuilt as Plan, Act (look first, then decide), Verify, with a plain-language note on why an agent was or was not needed
+- Token use measured on every answer, with a token optimisation guide for future projects
+- Offline test suite of 31 tests, covering every level and its safety rules, run on every change
+- Project charter, runbook, workflows, token optimisation guide, architecture, decision guide and roadmap published
 
 **Next**
-- Phase 1: run one scenario set through all five levels with the live API and record the results
+- Phase 1 (in progress): run one scenario set through all five levels with the live API and record the results
 - Phase 2: make levels 04 and 05 use Claude's native tool calling and strengthen retrieval for level 03
 - Phase 3: publish the learning module (deck, runbook, examples)
 - Phase 4: share a recorded demo

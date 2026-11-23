@@ -1,6 +1,6 @@
 # PM004_04 Runbook: ChatBot - Basics to Advance
 
-22 Nov 2026 · Naveen Nigam
+23 Nov 2026 · Naveen Nigam
 
 What the app is, how to run it, how to demo the five levels and what to do when something breaks. Learning prototype with demo data only; nothing it does changes a real system. Charter: [PM004_01](PM004_01_Project_Charter.md).
 
@@ -13,10 +13,12 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 | 01 | Basic Chatbot | Guided menu: pick a topic, then follow-up buttons; typed questions matched by keyword; anything else returns the main menu | No | Click **Cards**, then **Block my card** | Follow-up buttons, mode: fixed_rules |
 | 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to the bank asking for an update on payment PAY-1042" | "What this level did" |
 | 03 | RAG | Finds matching text in `knowledge/` and answers only from it, with numbered citations and a Sources list (readable titles; click to see the passage) | Yes | "What is the leave policy?" | "What this level did": sources and match % |
-| 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
-| 05 | Agentic AI | Look, decide, act: Claude plans and runs read-only lookups, looks at the results, then decides whether any action is needed; irreversible actions wait for approval | Yes | A gold goal, e.g. "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank" | "What this level did": plan, tools, blocked tools, check |
+| 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results. No rule matched: a cited document search. Irreversible actions ask Yes / No first | Yes | Cards → "I lost my card. What should I do?" | "What this level did": tools, mock results, approval |
+| 05 | Agentic AI | Plan, Act, Verify: Claude plans, runs read-only lookups, looks at the results, then decides whether any action is needed and checks the outcome against the goal; irreversible actions wait for approval | Yes | A gold goal, e.g. "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank" | Plan / Act / Verify steps and "Why an agent here" under every answer; the panel adds lookups, decision and checks |
 
-**Same workflow everywhere:** every bot opens with the same five topics. In 01 a topic opens its fixed menu; in 02 to 05 it opens the same short list of questions to pick from, so you can compare answers directly. Each answer ends with follow-up buttons and **Main menu**: fixed in 01; suggested by Claude in 02, 03 and 05; in 04 fixed next steps on the same topic (after a card block: order a replacement card or raise a card ticket).
+**Same workflow everywhere:** every bot opens with the same five topics. In 01 a topic opens its fixed menu; in 02 to 05 it opens the same short list of questions to pick from, so you can compare answers directly. Each answer ends with follow-up buttons and **Main menu**: fixed in 01; suggested by Claude in 02, 03 and 05 (in 05 including actions the agent can take); in 04 fixed next steps on the same topic (after a card block: order a replacement card or raise a card ticket). In 05 each topic also shows one gold **agent goal**, and the three "Goals for the agent" stay above the message box.
+
+**Cost:** every AI answer shows its Claude calls and input/output tokens in "What this level did"; use it to compare what each level costs. See [PM004_07 Token Optimisation](PM004_07_Token_Optimisation.md).
 
 Rule of thumb: use the simplest level that fully solves the problem (decision guide in the charter, section 6.4).
 
@@ -67,6 +69,7 @@ The command window is the server: leave it open while you use the app.
 | `ANTHROPIC_WORKSPACE_ID` | Only for keys not created inside a workspace | Blank |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5-5`, `claude-opus-5-5` or `claude-haiku-5-5` | `claude-sonnet-5-5` |
 | `ANTHROPIC_MAX_TOKENS` | Longest reply length | 1500 |
+| `CHATBOT_HISTORY_MESSAGES` | How many recent messages are re-sent to Claude each turn | 8 |
 
 Use Haiku for long practice sessions to keep costs low, and Sonnet or Opus for demos.
 
@@ -76,17 +79,17 @@ Click the same topic in all five bots, in order, and point out what changes. The
 
 | Question | 01 Basic | 02 Generative AI | 03 RAG | 04 AI Automation | 05 Agentic AI |
 | --- | --- | --- | --- | --- | --- |
-| "What is the leave policy?" | Fixed rule: leave needs approval, ask HR | General answer; does not know your policy | Quotes the demo policy (request 5 working days ahead) and cites `leave_policy.md` | Runs leave balance (8 days, mock) and leave policy tools, then summarises | Makes a plan, picks the leave tools, explains and verifies |
-| "My payment was declined, what should I do?" | No rule: fallback message | General list of common causes | Uses `payments_support.md`: details to confirm, possible causes, escalate | Searches the knowledge base and summarises | Plans the checks, searches, suggests next steps |
-| "I lost my card. What should I do?" (the **Cards** topic) | Card menu: how to block it | General advice | Card policy with source [1] | Asks **Yes, block the card / No, keep it active** first; blocks the demo card only after Yes | Plans the steps, runs safe ones (e.g. a ticket), holds the block for your approval |
-| "My payment keeps failing, raise a support ticket" | Fallback | Explains it cannot raise tickets | Answers from the guides, no ticket | Also creates a demo ticket (DEMO-xxxxxxxx) | May plan search, then ticket, then a check |
+| "What is the leave policy?" | Fixed rule: leave needs approval, ask HR | General answer; does not know your policy | Quotes the demo policy (request 5 working days ahead) and cites `leave_policy.md` | Runs leave balance (8 days, mock) and leave policy tools, then summarises | Looks up balance and policy, decides no action is needed, verifies; may say a lower level would have done |
+| "My payment was declined, what should I do?" | No rule: fallback message | General list of common causes | Uses `payments_support.md`: details to confirm, possible causes, escalate | Searches the knowledge base and summarises | Searches the guides, decides whether a ticket is needed, verifies |
+| "I lost my card. What should I do?" (the **Cards** topic) | Card menu: how to block it | General advice | Card policy with source [1] | Asks **Yes, block the card / No, keep it active** first; blocks the demo card only after Yes | Checks the card rules, proposes blocking the card and waits for your Yes; shows Plan / Act / Verify |
+| "My payment keeps failing, raise a support ticket" | Fallback | Explains it cannot raise tickets | Answers from the guides, no ticket | Also creates a demo ticket (DEMO-xxxxxxxx) | Looks first, raises the ticket because you asked, then verifies |
 | "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank." (05 gold goal) | Payment update email template | Drafts a generic email | Payment guidance with source, no status | Payment status and an email draft, marked not sent | Checks the status first, then drafts an email that quotes it, and verifies |
 
 **What to say at each step**
 - 01 to 02: the bot now understands free text and writes, but it does not know your company.
 - 02 to 03: answers now come from your own documents, with the source named.
 - 03 to 04: the bot now does something through tools, not just answers.
-- 04 to 05: the bot decides the steps itself; that flexibility is why real actions need human approval.
+- 04 to 05: the agent looks before it acts, decides its next step from what it found, verifies the result and says why an agent was (or was not) needed. That flexibility is why real actions still need your approval. Try a gold goal to see it earn its extra cost.
 
 Results vary slightly between runs for modes 02 to 05.
 
@@ -107,6 +110,7 @@ Results vary slightly between runs for modes 02 to 05.
 | Port 8000 already in use | App already running in another window | Close the other window, or use the one already open |
 | Basic bot says no rule matches | Expected: it only knows its fixed rules | Use the demo questions, or add a rule (section 7) |
 | RAG says it found nothing relevant | Question words do not appear in the knowledge files | Rephrase, or add a document |
+| "Why an agent here: the agent's decision could not be read" | Claude's decision reply was not valid JSON, so the agent safely did nothing | Ask again; the raw reply is shown in "What this level did" for diagnosis |
 | Old chats gone | `chat_history.db` deleted or app run from another folder | Restore the backup copy into the app folder |
 
 ## 7. Extending, safety and backup
@@ -115,7 +119,7 @@ Results vary slightly between runs for modes 02 to 05.
 | --- | --- | --- |
 | Teach the RAG bot your own content | Add a `.md` file to `knowledge/`; separate topics with a blank line | Demo or non-sensitive content only |
 | Add a Basic menu topic | Add a node to `BASIC_TREE` in `app.py` (label, answer, follow-up options, keywords), link it from a parent's options, and add it to `BASIC_MATCH_ORDER` | Keep wording exact and approved |
-| Add a demo tool | Add it to `tool()` and `ALLOWED_TOOLS`, and a keyword rule in the automation branch | Mock results only |
+| Add a demo tool | Add it to `tool()` and to `READ_ONLY_TOOLS` (only looks) or `ACTION_TOOLS` (changes something); add irreversible ones to `NEEDS_APPROVAL`; add a keyword rule for level 04 | Mock results only |
 | Change the model | `ANTHROPIC_MODEL` in `.env` | Restart |
 | Run the tests | `pip install -r requirements-dev.txt` then `pytest` | No key or internet needed |
 

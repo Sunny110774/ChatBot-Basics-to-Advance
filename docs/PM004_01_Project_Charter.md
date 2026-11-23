@@ -1,6 +1,6 @@
 # PM004_01 Project Charter: ChatBot - Basics to Advance
 
-22 Nov 2026 · Naveen Nigam · v0.1, Draft
+23 Nov 2026 · Naveen Nigam · v0.2, Draft (updated to match release 0.8.2)
 
 **Charter at a glance**
 
@@ -23,7 +23,7 @@ PM004 turns the "ChatBot - Basics to Advance" prototype into five working chatbo
 | Project code | PM004 |
 | Owner and project manager | Naveen Nigam |
 | Organisation | Learning with Naveen |
-| Version and status | v0.1, Draft |
+| Version and status | v0.2, Draft |
 | Planned start | 22 Nov 2026 |
 | Planned end | [TBC] |
 | Working base | This repository (FastAPI, SQLite, Claude) |
@@ -81,10 +81,12 @@ One app with five working levels and the material that explains them. All bounda
 - The five modes: 01 Basic, 02 Generative AI, 03 RAG, 04 AI Automation, 05 Agentic AI
 - Claude for modes 02 to 05; Basic stays rules only
 - Conversation history per mode in SQLite
-- RAG over Markdown files in `knowledge/`, with source file names shown
-- Allow-listed demo tools (leave balance, leave policy, knowledge search, ticket, email draft) that change nothing outside the app
+- RAG over Markdown files in `knowledge/`, with numbered citations and readable source titles
+- Allow-listed demo tools (leave balance, leave policy, knowledge search, payment status, ticket, email draft, block card, order replacement card) that change nothing outside the app
+- Human approval (Yes / No) before any irreversible action, in modes 04 and 05 (added 22 Nov 2026)
+- Token use shown for every answer, and a token optimisation guide, PM004_07 (added 23 Nov 2026)
 - One shared scenario set run through all five modes
-- Learning content: this charter and the runbook (PM004_04)
+- Learning content: this charter, the runbook (PM004_04), executive summary (PM004_05), workflows (PM004_06) and token optimisation guide (PM004_07)
 
 **Out of scope**
 - Real external actions: sending email, submitting leave, creating real tickets, bookings
@@ -96,7 +98,7 @@ One app with five working levels and the material that explains them. All bounda
 - Embedding-based retrieval with a vector store for mode 03
 - Claude native tool use for modes 04 and 05 instead of keyword rules and a JSON plan
 - Memory beyond the current conversation
-- Guardrails, human approval step in the UI, evaluation set, cost and token display
+- Guardrails and an evaluation set (the human approval step and token display moved into scope)
 - One question sent to all five modes at once, answers side by side
 - Hosted demo link
 
@@ -119,11 +121,11 @@ Each level keeps what the previous one could do and adds one capability: rules, 
 
 | # | Type | Workflow | What it adds | In the prototype today |
 | --- | --- | --- | --- | --- |
-| 01 | Basic chatbot | User -> menu or rule match -> predefined response | Fixed, predictable answers | Guided menu of 16 demo topics (bank hours, branches, cards, leave, email templates) with follow-up buttons; falls back to the main menu |
+| 01 | Basic chatbot | User -> menu or rule match -> predefined response | Fixed, predictable answers | Guided menu of 16 demo topics (bank hours, branches, cards, leave, customer email templates) with follow-up buttons; falls back to the main menu |
 | 02 | Generative AI | Prompt -> LLM -> generated response | Understands free text and writes new content | Claude with a short system prompt |
-| 03 | RAG | Question -> retrieve knowledge -> LLM -> grounded answer | Answers from your own documents, with sources | Keyword retrieval over 5 Bluewater Bank documents; refuses when nothing matches |
-| 04 | AI Automation | Request -> LLM -> tool or API -> action -> result | Does defined tasks through tools | Keyword rules call allow-listed demo tools; Claude summarises results |
-| 05 | Agentic AI | Goal -> plan -> tools -> observe and adapt -> verify -> result | Works out the steps itself towards a goal | Claude writes a plan, picks allowed tools, the app runs them, Claude explains and verifies |
+| 03 | RAG | Question -> retrieve knowledge -> LLM -> grounded answer | Answers from your own documents, with sources | Keyword retrieval over 5 Bluewater Bank documents, weak matches dropped; numbered citations with a Sources list; refuses when nothing matches |
+| 04 | AI Automation | Request -> LLM -> tool or API -> action -> result | Does defined tasks through tools | Keyword rules call allow-listed demo tools; Claude summarises results; asks Yes / No before an irreversible action; cited document search when no rule matches |
+| 05 | Agentic AI | Goal -> plan -> tools -> observe and adapt -> verify -> result | Works out the steps itself towards a goal | Plan, Act, Verify: Claude plans and runs read-only lookups, decides whether any action is needed after seeing the results, and checks the outcome against the goal; irreversible actions wait for approval; each answer says why an agent was (or was not) needed |
 
 These are not five separate products. In real systems they combine: an agent often uses RAG, tools and memory together. The levels are a way to learn which capability a problem actually needs.
 
@@ -188,6 +190,8 @@ Not the right choice when a fixed workflow would do the job: agents cost more, a
 
 ### 6.3 One question, five answers
 
+Illustrative: how each type behaves in a full system. The prototype's demo tools are narrower (see 6.1); its actual answers are in the runbook demo script.
+
 | Level | "Can I take two days of leave next week?" | "Why was my payment declined?" |
 | --- | --- | --- |
 | 01 Basic | Answers only if that exact rule was programmed; otherwise a fallback | Points to a fixed FAQ or a contact number |
@@ -209,7 +213,7 @@ Claude is fixed as the model because an Anthropic key is already in use and the 
 | Criterion | Why it fits | Status |
 | --- | --- | --- |
 | Already in use | Anthropic key and earlier Claude-based apps already run on it | Confirmed |
-| Prototype moved | All five modes rewired to the Anthropic SDK; offline test suite passes | Confirmed (live key test pending) |
+| Prototype moved | All five modes rewired to the Anthropic SDK; offline test suite passes; all five run live | Confirmed (live, 23 Nov 2026) |
 | Tool use for modes 04 and 05 | Native tool calling could replace keyword rules and the JSON plan | Verify at build |
 | Grounded answers with sources | Follows "answer only from this context" instructions for RAG | Verify at build |
 | Model choice by cost | Sonnet by default; Haiku or Opus selectable in `.env` | Confirmed (setting exists) |
@@ -288,7 +292,7 @@ Decision at the end of each phase: G1 decides whether the levels already look di
 | Software (Python, FastAPI, SQLite) | No licence cost | None |
 
 **Open items**
-- [ ] Run the app with a live Anthropic key and confirm all 5 modes
+- [x] Run the app with a live Anthropic key and confirm all 5 modes (23 Nov 2026)
 - [ ] Agree the scenario set and its size
 - [ ] Set gate thresholds after the first scenario run
 - [ ] Set an API spend limit

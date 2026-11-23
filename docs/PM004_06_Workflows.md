@@ -1,12 +1,12 @@
 # PM004_06 Workflows: ChatBot - Basics to Advance
 
-22 Nov 2026 · Naveen Nigam
+23 Nov 2026 · Naveen Nigam
 
 This document shows how the five chatbots work twice over: first as the user experiences them (functional), then as the system processes them (technical). Every step matches the current code; anything planned is marked as backlog. Related: [Charter](PM004_01_Project_Charter.md), [Runbook](PM004_04_Runbook.md), [Executive Summary](PM004_05_Executive_Summary.md).
 
 ## 1. Functional workflows
 
-From the user's side every level starts the same way: the same five topics, or a typed question or goal. Each level adds steps before the answer arrives, and every answer ends with follow-up buttons and Main menu (fixed in 01, suggested by Claude in 02 to 05, written in the same call at no extra cost).
+From the user's side every level starts the same way: the same five topics, or a typed question or goal. Each level adds steps before the answer arrives, and every answer ends with follow-up buttons and Main menu (fixed in 01 and 04; suggested by Claude in 02, 03 and 05, written in the same call at no extra cost).
 
 ![Functional workflows: user view of the five levels](images/workflow-functional.png)
 
@@ -16,9 +16,9 @@ The highlighted box is what the user gets back. What changes from level to level
 | --- | --- | --- | --- |
 | 01 Basic | Clicks a topic or asks a known question | A fixed answer with buttons for the next questions, or the main menu if nothing matches | Exact, approved wording |
 | 02 Generative AI | Picks a topic or asks anything in their own words | A new written answer, three suggested follow-up questions and Main menu | Drafting and explaining; not company facts |
-| 03 RAG | Asks about company policy or procedure | An answer plus the source file names | Answers grounded in the documents given |
-| 04 AI Automation | Asks for a known task | A summary plus the tools that ran; a Yes / No approval first for anything irreversible; follow-ups offer only real tasks on the same topic | Defined tasks with predictable steps |
-| 05 Agentic AI | States a goal | The plan, the tools that ran and the result | Multi-step goals, with a person approving any real action |
+| 03 RAG | Asks about company policy or procedure | An answer with numbered citations and a Sources list (document title and the passage used) | Answers grounded in the documents given |
+| 04 AI Automation | Asks for a known task | A summary plus the tools that ran; a Yes / No approval first for anything irreversible; follow-ups offer only real tasks on the same topic; a cited document search when no rule matches | Defined tasks with predictable steps |
+| 05 Agentic AI | States a goal, or picks a gold goal | A short reply, then Plan → Act → Verify steps and a "Why an agent here" note; a Yes / No approval first for anything irreversible | Multi-step goals, with a person approving any real action |
 
 ## 2. Technical request flow
 
@@ -38,9 +38,9 @@ Step 5 runs different functions in `app.py` for each level. The number of Claude
 | --- | --- | --- | --- |
 | 01 Basic | `basic()` over `BASIC_TREE` (16 topics, each with follow-up options) | 0 | None needed |
 | 02 Generative AI | `history()`, `clean_messages()`, `llm()` | 1 | None needed |
-| 03 RAG | `retrieve()` (content-word overlap, common words ignored, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
-| 04 AI Automation | keyword rules, `tool()`, `llm()` to summarise | 1 | Claude native tool calling |
-| 05 Agentic AI | `llm()` plan + read-only lookups (`READ_ONLY_TOOLS`), `tool()`, `llm()` decide actions after seeing results (`ACTION_TOOLS`, approval for irreversible ones), `llm()` short answer | 3 | Native tool calling in a loop, with a human approval step |
+| 03 RAG | `retrieve()` (content-word overlap, common words ignored, top 3 chunks, weak matches below half the best score dropped), `number_sources()`, `llm()` with numbered sources as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
+| 04 AI Automation | keyword rules (`automation_tools()`), `tool()`, `llm()` to summarise; no rule matched: cited document search; `NEEDS_APPROVAL` holds irreversible tools | 0 or 1 (0 when asking for approval, after a No, or when nothing is found) | Claude native tool calling |
+| 05 Agentic AI | Plan: `llm()` JSON plan and read-only lookups (`READ_ONLY_TOOLS`). Act: `tool()`, then `llm()` decides actions after seeing the results (`ACTION_TOOLS`; irreversible ones held for approval). Verify: app checks, then `llm()` short reply with a `VERIFY:` line, parsed by `finish_verify()` | 3 | Native tool calling in a loop, with a human approval step |
 
 ## 4. Error and safety paths
 
@@ -56,7 +56,10 @@ Every failure returns a clear message instead of a guess, and the safety rules a
 | A request failed, then the user sends again | Merges the two user turns so Claude still gets alternating turns | A normal answer | Yes |
 | RAG finds nothing relevant | Does not call Claude at all | "I won't invent a policy answer" | Yes |
 | Agent plans a tool that is not on the allow-list | Skips it; only allow-listed tools run | Only real demo tool results | Yes |
-| Agent plan is not valid JSON | Falls back to a safe plan with no tools | An explanation that no tools were run | No |
+| Agent plan is not valid JSON | Falls back to a safe plan that only searches the documents | A normal answer from the documents | No |
+| Agent decision is not valid JSON | Takes no action | "The agent's decision could not be read, so it safely took no action"; the raw reply is shown in the panel | Yes (parser test) |
+| Agent tries an action during the look step | Blocks it; actions run only after the decision step | Listed under blocked tools | Yes |
+| Document search finds only weak matches | Drops passages scoring less than half the best match | Answers use only relevant passages | Yes |
 | Conversation belongs to another bot | Rejects the message (HTTP 400) | Error message | No |
 | Empty message or unknown bot | Rejects the message (HTTP 400) | Error message | No |
 | Any demo tool | Returns mock data only; nothing is sent, submitted or booked | Results marked as demo or "not sent" | Yes |
@@ -72,18 +75,18 @@ The page talks to eleven small API endpoints, and two SQLite tables hold all con
 | `GET /` | Serves the web page |
 | `GET /api/health` | Status badge: provider, model, whether a key is configured |
 | `GET /api/basic/menu` | Main menu topics for the Basic bot |
-| `GET /api/menu?bot=<mode>` | The shared topic menu: in Basic each topic opens its menu branch; in 02 to 05 each topic sends the same question |
+| `GET /api/menu?bot=<mode>` | The shared topic menu: in Basic each topic opens its menu branch; in 02 to 05 each topic opens the same list of questions; in 05 each topic also has a gold goal, plus three goals for the strip above the message box |
 | `GET /api/settings` | Whether a key is set (masked hint only), workspace ID, model |
 | `POST /api/settings` | Saves key, workspace ID and model to `.env`; validates their format |
 | `POST /api/settings/test` | Live, free connection test (token count) with a plain-English result |
 | `GET /api/conversations?bot=<mode>` | Lists saved conversations for one mode, newest first |
 | `POST /api/conversations` | Starts a new conversation for a mode |
 | `GET /api/conversations/{id}` | Reopens one conversation with all its messages |
-| `POST /api/chat` | Sends a message and returns the answer plus metadata (mode, sources, tools, plan) |
+| `POST /api/chat` | Sends a message and returns the answer plus metadata (mode, sources, tools, plan, workflow, verify, usage) |
 
 | Table | Fields | Notes |
 | --- | --- | --- |
 | `conversations` | id, bot, title, created_at, updated_at | Title is the first 40 characters of the first question |
-| `messages` | id, conversation_id, role, content, created_at, meta | Role is user or assistant; meta holds "what this level did" (sources, tools, plan, check); full history is sent to Claude on each turn |
+| `messages` | id, conversation_id, role, content, created_at, meta | Role is user or assistant; meta holds "what this level did" (sources, tools, plan, workflow, checks, token usage); only the last 8 messages are sent to Claude on each turn |
 
 **Not stored in the database:** the API key. It is kept only in `.env` on the computer running the app and never returned to the page in full.

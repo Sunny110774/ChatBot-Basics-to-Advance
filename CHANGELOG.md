@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.3 - 2026-11-23
+- **Documents brought up to date with 0.8.2:** README, charter (v0.2), executive summary, runbook and workflows now describe the current app: Plan / Act / Verify, look-then-decide agent, approval for irreversible actions, numbered citations, weak-match cut-off, Automation's fixed follow-ups and cited fallback, gold agent goals, token use per answer, history cap and the 31-test suite.
+- Technical and functional workflow diagrams redrawn (level 05 now three Claude calls; 04 can make none).
+
 ## 0.8.2 - 2026-11-23
 - **No more emails to a manager:** the Write an email topic now drafts customer emails to the bank (payment update, missing card) in every bot, including Basic's templates and Automation's follow-ups.
 - **One agent goal per topic in 05,** shown in gold under the topic's questions (for example Cards: "I lost my card. Block it and order a replacement."). The shared questions stay, so levels can still be compared like for like.
