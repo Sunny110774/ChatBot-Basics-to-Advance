@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.1 - 2026-11-23
+- Every document now states that the same bot can be rebuilt or integrated for internal employees (check leave and other policies, send out emails), with what each level would do for staff and what changes to make it real.
+
 ## 0.9.0 - 2026-11-23
 - **Hosted mode for UAT and Prod** (`CHATBOT_HOSTED=1`): Settings locked and the key never shown; each browser sees only its own chats; daily caps on Claude calls for the whole app and per visitor (Basic keeps working when reached); message length limit; a footer explaining the public demo, with an environment tag (UAT).
 - **Render blueprint** (`render.yaml`): UAT from the `uat` branch, Prod from `main`, free plan, Singapore region, health check, secrets entered in the dashboard.

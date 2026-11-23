@@ -59,6 +59,20 @@ Each level pays off for a different kind of problem. The business cases below ar
 
 The same organisation usually needs several levels at once: a bank may run a Basic FAQ, a RAG policy assistant and an automated ticketing flow, and reserve agents for a few high-value investigations.
 
+### Reuse for internal employees
+
+**The same bot can be rebuilt or integrated for internal employees.** Bluewater Bank's customers are the demo audience, but the five-level design works just as well as an employee assistant: pointed at internal HR and policy documents and internal systems, it lets staff check leave and other policies and send out emails.
+
+| Level | For employees, it would… |
+| --- | --- |
+| 01 Basic | Answer fixed HR and IT FAQs: holidays, office hours, how to request leave |
+| 02 Generative AI | Help draft emails, messages and summaries |
+| 03 RAG | Answer leave, travel, expense and IT policy questions from the company's own policies, with the policy cited |
+| 04 AI Automation | Check a leave balance, raise an HR or IT ticket, draft an email to a manager for review |
+| 05 Agentic AI | Handle goals such as "Plan two days off next week and draft the request": check balance, notice rule and team calendar, then ask the employee to approve before anything is sent |
+
+The demo already contains the employee side as mock tools (leave balance, leave policy, email drafts), so moving to internal use means swapping in the company's documents and connecting the HR system, ticketing tool and email, behind company sign-in, with human approval kept before anything is sent or submitted.
+
 ## 4. How to choose
 
 Use the simplest level that fully solves the problem, and move up only when the level below cannot do the job.

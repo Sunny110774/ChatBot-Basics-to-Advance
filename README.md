@@ -38,6 +38,20 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 
 ![Decision guide: use the simplest level that fully solves the problem](docs/images/decision-guide.png)
 
+## Reuse: an internal employee assistant
+
+**The same bot can be rebuilt or integrated for internal employees.** Bluewater Bank's customers are the demo audience, but the five-level design works just as well as an employee assistant: pointed at internal HR and policy documents and internal systems, it lets staff check leave and other policies and send out emails.
+
+| Level | For employees, it would… |
+| --- | --- |
+| 01 Basic | Answer fixed HR and IT FAQs: holidays, office hours, how to request leave |
+| 02 Generative AI | Help draft emails, messages and summaries |
+| 03 RAG | Answer leave, travel, expense and IT policy questions from the company's own policies, with the policy cited |
+| 04 AI Automation | Check a leave balance, raise an HR or IT ticket, draft an email to a manager for review |
+| 05 Agentic AI | Handle goals such as "Plan two days off next week and draft the request": check balance, notice rule and team calendar, then ask the employee to approve before anything is sent |
+
+The demo already contains the employee side as mock tools (leave balance, leave policy, email drafts), so moving to internal use means swapping in the company's documents and connecting the HR system, ticketing tool and email, behind company sign-in, with human approval kept before anything is sent or submitted.
+
 ## How it works
 
 ![Architecture: browser, FastAPI app, five modes, SQLite history, Claude API](docs/images/architecture.png)

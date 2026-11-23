@@ -4,6 +4,8 @@
 
 Every Claude call is paid by the token, so this guide records how PM004 keeps token use low, how it measures it, and a checklist to reuse on every future project.
 
+The same techniques apply when the bot is rebuilt or integrated for internal employees (checking leave and other policies, sending out emails): an employee assistant answers far more questions a day, so the savings grow with it.
+
 **At a glance**
 - **Rule 1:** don't call the model when rules or data can answer.
 - **Rule 2:** send the model only what it needs (relevant passages, recent turns).

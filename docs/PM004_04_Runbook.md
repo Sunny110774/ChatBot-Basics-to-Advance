@@ -22,6 +22,18 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 
 Rule of thumb: use the simplest level that fully solves the problem (decision guide in the charter, section 6.4).
 
+**The same bot can be rebuilt or integrated for internal employees.** Bluewater Bank's customers are the demo audience, but the five-level design works just as well as an employee assistant: pointed at internal HR and policy documents and internal systems, it lets staff check leave and other policies and send out emails.
+
+| Level | For employees, it would… |
+| --- | --- |
+| 01 Basic | Answer fixed HR and IT FAQs: holidays, office hours, how to request leave |
+| 02 Generative AI | Help draft emails, messages and summaries |
+| 03 RAG | Answer leave, travel, expense and IT policy questions from the company's own policies, with the policy cited |
+| 04 AI Automation | Check a leave balance, raise an HR or IT ticket, draft an email to a manager for review |
+| 05 Agentic AI | Handle goals such as "Plan two days off next week and draft the request": check balance, notice rule and team calendar, then ask the employee to approve before anything is sent |
+
+The demo already contains the employee side as mock tools (leave balance, leave policy, email drafts), so moving to internal use means swapping in the company's documents and connecting the HR system, ticketing tool and email, behind company sign-in, with human approval kept before anything is sent or submitted.
+
 ## 2. Files and what they do
 
 | File or folder | What it is | Edit it? |
@@ -120,6 +132,7 @@ Results vary slightly between runs for modes 02 to 05.
 | Teach the RAG bot your own content | Add a `.md` file to `knowledge/`; separate topics with a blank line | Demo or non-sensitive content only |
 | Add a Basic menu topic | Add a node to `BASIC_TREE` in `app.py` (label, answer, follow-up options, keywords), link it from a parent's options, and add it to `BASIC_MATCH_ORDER` | Keep wording exact and approved |
 | Add a demo tool | Add it to `tool()` and to `READ_ONLY_TOOLS` (only looks) or `ACTION_TOOLS` (changes something); add irreversible ones to `NEEDS_APPROVAL`; add a keyword rule for level 04 | Mock results only |
+| Rebuild it for internal employees | Replace `knowledge/` with HR and policy documents, change the topics and Basic menu to employee questions, and connect the mock tools (leave balance, ticket, email draft) to the real HR system, ticketing tool and email | Add company sign-in; keep approval before anything is sent or submitted |
 | Change the model | `ANTHROPIC_MODEL` in `.env` | Restart |
 | Run the tests | `pip install -r requirements-dev.txt` then `pytest` | No key or internet needed |
 
