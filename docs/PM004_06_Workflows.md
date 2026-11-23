@@ -54,6 +54,12 @@ Step 5 runs different functions in `app.py` for each level. The number of Claude
 | 04 AI Automation | keyword rules (`automation_tools()`), `tool()`, `llm()` to summarise; no rule matched: cited document search; `NEEDS_APPROVAL` holds irreversible tools | 0 or 1 (0 when asking for approval, after a No, or when nothing is found) | Claude native tool calling |
 | 05 Agentic AI | Plan: `llm()` JSON plan and read-only lookups (`READ_ONLY_TOOLS`). Act: `tool()`, then `llm()` decides actions after seeing the results (`ACTION_TOOLS`; irreversible ones held for approval). Verify: app checks, then `llm()` short reply with a `VERIFY:` line, parsed by `finish_verify()` | 3 | Native tool calling in a loop, with a human approval step |
 
+### 3.1 API calls for Bot 05 Agentic AI
+
+Bot 05 is the superset of the other levels, so its calls show every part of the system. One message is one `POST /api/chat`; inside it, FastAPI makes three Claude calls (plan, decide, answer and verify) and runs read-only lookups and allowed actions in between. An irreversible action such as blocking a card is held and needs a second request with the user's "Yes".
+
+![API calls for Bot 05: browser, FastAPI, tools, Claude API and SQLite in order](images/workflow-agentic-api-calls.png)
+
 ## 4. Error and safety paths
 
 Every failure returns a clear message instead of a guess, and the safety rules are enforced in code and covered by tests.
