@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 - 2026-11-23
+- **Agentic AI shows Plan -> Act -> Verify on every answer** as a visible three-step strip, in plain language.
+- **"Why an agent here"** note on each answer, written by the agent's decision step; it honestly says when a simpler level (03 RAG or 04 Automation) would have been enough.
+- **Real Verify step:** the app checks the tools (allow-list, errors, approvals) and Claude checks the outcome against the goal (met / partly / not met) in the same reply call, so no extra call.
+- **Agent goals on the 05 welcome screen** with a short explanation of why an agent is needed: a held payment that must be sorted today, a lost card while travelling, leave plus an email.
+- **Token use measured on every answer:** "What this level did" shows Claude calls and input/output tokens per step (from the API's `usage` field).
+- **History cap:** only the last 8 messages are re-sent (`CHATBOT_HISTORY_MESSAGES`); internal JSON steps are capped at 500 output tokens.
+- **New doc: PM004_07 Token Optimisation**, with a reusable checklist for future projects.
+
 ## 0.7.0 - 2026-11-23
 - **Agentic AI is now a look -> decide -> act loop.** Before, every tool in the plan ran at once, so a conditional step ("raise a ticket if unclear") ran even when the documents had already answered. Now:
   1. Claude plans and runs read-only lookups only (search, leave balance, leave policy, payment status).
