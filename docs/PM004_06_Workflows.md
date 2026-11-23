@@ -40,7 +40,7 @@ Step 5 runs different functions in `app.py` for each level. The number of Claude
 | 02 Generative AI | `history()`, `clean_messages()`, `llm()` | 1 | None needed |
 | 03 RAG | `retrieve()` (content-word overlap, common words ignored, top 3 chunks), `llm()` with the chunks as context | 0 when nothing matches, else 1 | Embedding search with a vector store |
 | 04 AI Automation | keyword rules, `tool()`, `llm()` to summarise | 1 | Claude native tool calling |
-| 05 Agentic AI | `llm()` for the plan, `parse_json()`, `ALLOWED_TOOLS` filter, `tool()`, `llm()` to explain and verify | 2 | Native tool calling in a loop, with a human approval step |
+| 05 Agentic AI | `llm()` plan + read-only lookups (`READ_ONLY_TOOLS`), `tool()`, `llm()` decide actions after seeing results (`ACTION_TOOLS`, approval for irreversible ones), `llm()` short answer | 3 | Native tool calling in a loop, with a human approval step |
 
 ## 4. Error and safety paths
 

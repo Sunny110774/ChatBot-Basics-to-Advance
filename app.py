@@ -366,8 +366,9 @@ def number_sources(hits):
 
 
 # ---------- 04/05 allow-listed demo tools (mock data; nothing outside the app changes) ----------
-ALLOWED_TOOLS = {"leave_balance", "leave_policy", "search_knowledge", "create_ticket", "email_draft",
-                 "block_card", "order_replacement_card", "payment_status"}
+READ_ONLY_TOOLS = {"leave_balance", "leave_policy", "search_knowledge", "payment_status"}  # look: change nothing
+ACTION_TOOLS = {"create_ticket", "email_draft", "block_card", "order_replacement_card"}      # act: change something (mock)
+ALLOWED_TOOLS = READ_ONLY_TOOLS | ACTION_TOOLS
 
 
 def tool(name, args):
@@ -684,43 +685,76 @@ def chat(b: ChatReq):
                 done = (done - {"create_ticket"}) | {"card_ticket"}
             meta["options"] = automation_follow_ups(done)
 
-    else:  # agentic
+    else:  # agentic: look -> decide -> act -> answer
+        # 1. Plan and look: Claude plans and picks READ-ONLY lookups. Nothing changes yet.
         plan = llm(
-            "You are Bluewater Bank's Agentic AI demo (a fictional bank). Make a 2-4 step plan to reach the user's goal and pick tools "
-            "only from: leave_balance, leave_policy, search_knowledge (args: query), create_ticket (args: summary), "
-            "email_draft (args: subject, body), block_card, order_replacement_card, payment_status (args: reference). "
+            "You are Bluewater Bank's Agentic AI demo (a fictional bank). The goal is exactly what the user asked: do not widen it. "
+            "Make a short plan (2-4 steps) and pick the READ-ONLY lookups needed first, only from: "
+            "search_knowledge (args: query, use the user's own words), leave_balance, leave_policy, payment_status (args: reference). "
+            "Actions (tickets, emails, card changes) are decided later, after you see the lookup results. "
             "Return JSON only, with no other text: "
-            "{\"plan\":[...],\"tools\":[{\"name\":\"...\",\"args\":{}}],\"verification\":\"...\"}. "
-            "Never propose real external actions.", msgs)
+            "{\"goal\":\"...\",\"plan\":[...],\"lookups\":[{\"name\":\"...\",\"args\":{}}]}.", msgs)
         try:
             obj = parse_json(plan)
         except Exception:
-            obj = {"plan": ["Understand goal", "Use relevant demo tools", "Review results"], "tools": [],
-                   "verification": "Could not parse a structured plan; no tools run."}
-        observed, skipped, held = [], [], []
-        for item in obj.get("tools", [])[:4]:
-            if isinstance(item, dict) and item.get("name") in NEEDS_APPROVAL:
-                held.append(item["name"])  # never run without the user's approval
-            elif isinstance(item, dict) and item.get("name") in ALLOWED_TOOLS:
-                observed.append({"tool": item["name"], "result": tool(item["name"], item.get("args") or {})})
-            elif isinstance(item, dict) and item.get("name"):
-                skipped.append(str(item["name"]))
+            obj = {"plan": ["Understand the question", "Look it up", "Answer"], "lookups": []}
+        observed, skipped = [], []
+        for item in (obj.get("lookups") or obj.get("tools") or [])[:3]:
+            name = item.get("name") if isinstance(item, dict) else None
+            if name in READ_ONLY_TOOLS:
+                observed.append({"tool": name, "step": "look", "result": tool(name, item.get("args") or {})})
+            elif name:
+                skipped.append(str(name))  # not allowed in the look step (unknown tool, or an action planned too early)
+        if not observed:  # always look at the documents at least once
+            observed.append({"tool": "search_knowledge", "step": "look", "result": tool("search_knowledge", {"query": b.message})})
+        goal = str(obj.get("goal") or b.message)
+
+        # 2. Decide: Claude sees what the lookups returned and decides whether any action is really needed.
+        decision_raw = llm(
+            "You are Bluewater Bank's Agentic AI demo. Below are the user's goal and what the read-only lookups returned. "
+            "Decide whether any action is needed. Available actions: create_ticket (args: summary), email_draft (args: subject, body), "
+            "block_card, order_replacement_card. Take an action ONLY if the user asked for it, or the goal clearly cannot be met without it "
+            "(for example, a reported lost or stolen card must be blocked). Never raise a ticket or draft an email for a question the lookups "
+            "already answer. Stay within the user's question. Return the decision as JSON only, with no other text: "
+            "{\"actions\":[{\"name\":\"...\",\"args\":{},\"reason\":\"...\"}],\"goal_met\":\"yes|partly|no\",\"check\":\"one sentence\"}"
+            "\n\nGoal: " + goal + "\n\nLookup results:\n" + json.dumps(observed), msgs)
+        try:
+            decision = parse_json(decision_raw)
+        except Exception:
+            decision = {"actions": [], "goal_met": "partly", "check": "The decision could not be read, so no action was taken."}
+        acted, held, reasons = [], [], []
+        for item in (decision.get("actions") or [])[:2]:
+            name = item.get("name") if isinstance(item, dict) else None
+            if name in NEEDS_APPROVAL:
+                held.append(name)  # never run without the user's approval
+                reasons.append(f"{name}: {item.get('reason', '')} (waiting for your approval)")
+            elif name in ACTION_TOOLS:
+                acted.append({"tool": name, "step": "act", "result": tool(name, item.get("args") or {})})
+                reasons.append(f"{name}: {item.get('reason', '')}")
+            elif name:
+                skipped.append(str(name))
         meta["plan"] = obj.get("plan", [])
-        meta["tools"] = observed
+        meta["tools"] = observed + acted
         meta["skipped"] = skipped
-        meta["verification"] = obj.get("verification", "")
+        meta["decision"] = "; ".join(reasons) if reasons else "No action needed: the lookups answer the question."
+        meta["verification"] = str(decision.get("check") or "")
         if held:
             meta["awaiting"] = held[0]
-        approval_note = (f" The step '{held[0]}' was NOT run: it cannot be undone, so it is waiting for the user's approval. "
-                         f"End by asking the user to approve it ({NEEDS_APPROVAL[held[0]]}). Do not add follow-up questions."
+
+        # 3. Answer: a short, customer-facing reply. Internals stay in the "What this level did" panel.
+        approval_note = (f" One step was NOT run because it cannot be undone: {NEEDS_APPROVAL[held[0]]}. "
+                         "End by asking the user to approve it. Do not add follow-up questions."
                          if held else FOLLOW_UPS + " Only suggest follow-ups the available tools can handle.")
-        answer = llm("You are Bluewater Bank's Agentic AI demo. Explain the plan, what each tool returned and whether the goal is met, honestly. "
-                     "Say what still needs a human decision. No real-world action was taken; all data is mock." + approval_note + "\n\nPlan and results:\n"
-                     + json.dumps({"plan": meta["plan"], "tools": observed, "awaiting_approval": held, "verification": meta["verification"]}), msgs)
+        answer = llm("You are Bluewater Bank's Agentic AI demo (a fictional bank). Write a short, clear reply to the user, under 120 words "
+                     "(longer only for a drafted email). Answer only what the user asked, using only the results below. Do not mention tools, "
+                     "file names, scores, plans or internal steps; the app shows them separately. If an action was taken, say what was done. "
+                     "Add one short sentence that this is demo data and nothing real was changed." + approval_note
+                     + "\n\nGoal: " + goal + "\n\nResults:\n" + json.dumps({"lookups": observed, "actions": acted, "awaiting_approval": held}), msgs)
         if held:
             meta["options"] = [APPROVE[held[0]], DECLINE[held[0]]]
-        meta["did"] = ("Claude planned the steps and chose tools; the app ran only allow-listed tools, paused any step that cannot be undone "
-                       "until you approve it, and Claude then checked the results against the goal.")
+        meta["did"] = ("Claude planned and ran read-only lookups first, looked at the results, then decided whether any action was needed: "
+                       + ("it took the action(s) below" if acted else "none was") + (", and paused one that cannot be undone until you approve it" if held else "")
+                       + ". The app ran only allow-listed tools.")
 
     if b.bot != "basic":
         answer, follow = split_follow_ups(answer)

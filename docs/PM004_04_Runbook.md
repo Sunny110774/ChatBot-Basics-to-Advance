@@ -14,7 +14,7 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 | 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to my manager asking for two days' leave next week" | "What this level did" |
 | 03 | RAG | Finds matching text in `knowledge/` and answers only from it, with numbered citations and a Sources list (readable titles; click to see the passage) | Yes | "What is the leave policy?" | "What this level did": sources and match % |
 | 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
-| 05 | Agentic AI | Claude plans 2 to 4 steps, picks allowed demo tools, the app runs them, Claude explains and verifies | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
+| 05 | Agentic AI | Look, decide, act: Claude plans and runs read-only lookups, looks at the results, then decides whether any action is needed; irreversible actions wait for approval | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
 
 **Same workflow everywhere:** every bot opens with the same five topics. In 01 a topic opens its fixed menu; in 02 to 05 it opens the same short list of questions to pick from, so you can compare answers directly. Each answer ends with follow-up buttons and **Main menu**: fixed in 01; suggested by Claude in 02, 03 and 05; in 04 fixed next steps on the same topic (after a card block: order a replacement card or raise a card ticket).
 

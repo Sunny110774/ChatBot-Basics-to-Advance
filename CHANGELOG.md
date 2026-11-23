@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 - 2026-11-23
+- **Agentic AI is now a look -> decide -> act loop.** Before, every tool in the plan ran at once, so a conditional step ("raise a ticket if unclear") ran even when the documents had already answered. Now:
+  1. Claude plans and runs read-only lookups only (search, leave balance, leave policy, payment status).
+  2. Claude sees the results and decides whether any action is needed (ticket, email, card), with a reason for each.
+  3. Irreversible actions still wait for the user's approval.
+  4. The reply is short and customer-facing; plan, lookups, decision and check move to "What this level did".
+- The goal stays what the user asked; the agent no longer widens it.
+- Tools are split into `READ_ONLY_TOOLS` and `ACTION_TOOLS`. One extra Claude call per question in level 05 (3 instead of 2).
+
 ## 0.6.4 - 2026-11-23
 - **Automation's document fallback is now visible and cited:** when no fixed rule matches, level 04 searches the company documents (the level 03 RAG step), answers with numbered citations and a Sources list, and "What this level did" says "No fixed rule matched your message, so it fell back to searching the company documents". If nothing relevant is found it says so without calling Claude.
 

@@ -308,30 +308,56 @@ def test_automation_follow_ups_stay_on_topic(env):
     assert "create_ticket" in [t["tool"] for t in meta["tools"]] and meta["options"] == ["Main menu"]
 
 
+class ScriptedAgent:
+    """Fake Claude for the agent loop: a fixed plan, a fixed decision, then the normal fake reply."""
+
+    def __init__(self, calls, plan, decision):
+        self.inner, self.plan, self.decision = FakeMessages(calls), plan, decision
+
+    def create(self, **kw):
+        if "Return JSON only" in kw["system"]:
+            self.inner.calls.append(kw)
+            return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=json.dumps(self.plan))])
+        if "Return the decision as JSON only" in kw["system"]:
+            self.inner.calls.append(kw)
+            return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=json.dumps(self.decision))])
+        return self.inner.create(**kw)
+
+    def count_tokens(self, **kw):
+        return types.SimpleNamespace(input_tokens=1)
+
+
 def test_agent_never_blocks_a_card_without_approval(env, monkeypatch):
     app, client, calls = env
-
-    class Plan:
-        def __init__(self):
-            self.inner = FakeMessages(calls)
-
-        def create(self, **kw):
-            if "Return JSON only" in kw["system"]:
-                text = json.dumps({"plan": ["Block card", "Raise ticket"], "tools": [{"name": "block_card", "args": {}}, {"name": "create_ticket", "args": {"summary": "lost card"}}], "verification": "done"})
-                return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)])
-            return self.inner.create(**kw)
-
-        def count_tokens(self, **kw):
-            return types.SimpleNamespace(input_tokens=1)
-
-    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=Plan()))
+    agent = ScriptedAgent(calls, {"goal": "Deal with a lost card", "plan": ["Look up the card policy", "Act"],
+                                  "lookups": [{"name": "search_knowledge", "args": {"query": "lost card"}}]},
+                          {"actions": [{"name": "block_card", "reason": "card reported lost"},
+                                       {"name": "create_ticket", "args": {"summary": "lost card"}, "reason": "record the loss"}],
+                           "goal_met": "partly", "check": "Card block waits for approval"})
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=agent))
     cid, r = ask(client, "agentic", "I lost my card, sort it out")
     meta = r.json()["metadata"]
     assert meta["awaiting"] == "block_card"
-    assert [t["tool"] for t in meta["tools"]] == ["create_ticket"]  # the safe step ran, the irreversible one waits
-    assert meta["options"][0] == "Yes, block the card"
+    assert [(t["step"], t["tool"]) for t in meta["tools"]] == [("look", "search_knowledge"), ("act", "create_ticket")]
+    assert meta["options"][0] == "Yes, block the card"  # the safe step ran, the irreversible one waits
     _, r = ask(client, "agentic", "yes", cid)
     assert r.json()["metadata"]["approved"] == ["block_card"]
+
+
+def test_agent_looks_before_it_acts(env, monkeypatch):
+    app, client, calls = env
+    # The plan tries to raise a ticket up front; the look step must not run it.
+    agent = ScriptedAgent(calls, {"goal": "Banking hours", "plan": ["Search", "Raise a ticket if unclear"],
+                                  "lookups": [{"name": "search_knowledge", "args": {"query": "banking hours"}},
+                                              {"name": "create_ticket", "args": {"summary": "confirm hours"}}]},
+                          {"actions": [], "goal_met": "yes", "check": "The documents give the hours"})
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=agent))
+    _, r = ask(client, "agentic", "What are Bluewater Bank's banking hours?")
+    meta = r.json()["metadata"]
+    assert [t["tool"] for t in meta["tools"]] == ["search_knowledge"]  # answered, so no ticket was raised
+    assert meta["skipped"] == ["create_ticket"] and meta["decision"].startswith("No action needed")
+    assert len(calls) == 3  # plan, decide, answer
+    assert "Do not mention tools, file names, scores" in calls[-1]["system"]
 
 
 def test_weak_matches_are_dropped(env):

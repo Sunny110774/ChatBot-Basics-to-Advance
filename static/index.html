@@ -46,9 +46,10 @@ function sourcesBlock(src){let d=document.createElement("div");d.className="sour
 function didPanel(meta){let d=document.createElement("details");d.className="did";let h=`<summary>What this level did</summary>`;if(meta.did)h+=`<div class="row">${esc(meta.did)}</div>`;
  if(meta.sources?.length)h+=`<div class="row"><b>Documents used:</b> ${meta.sources.map(x=>`${x.n?"["+x.n+"] ":""}${esc(x.title||x.source)} (match ${Math.round(x.score*100)}%)`).join(", ")}</div>`;
  if(meta.plan?.length)h+=`<div class="row"><b>Plan:</b><ol>${meta.plan.map(p=>`<li>${esc(p)}</li>`).join("")}</ol></div>`;
- if(meta.tools?.length)h+=`<div class="row"><b>Tools run (mock data):</b>${meta.tools.map(t=>`<div><code>${esc(t.tool)}</code> → ${esc(short(t.result))}</div>`).join("")}</div>`;
+ if(meta.tools?.length)h+=`<div class="row"><b>Tools run (mock data):</b>${meta.tools.map(t=>`<div>${t.step?`<small>${t.step==="look"?"Look":"Act"}:</small> `:""}<code>${esc(t.tool)}</code> → ${esc(short(t.result))}</div>`).join("")}</div>`;
  else if(["automation","agentic"].includes(meta.mode))h+=`<div class="row"><b>Tools run:</b> none</div>`;
- if(meta.skipped?.length)h+=`<div class="row"><b>Blocked (not on the allow-list):</b> ${meta.skipped.map(esc).join(", ")}</div>`;
+ if(meta.decision)h+=`<div class="row"><b>Decision after looking:</b> ${esc(meta.decision)}</div>`;
+ if(meta.skipped?.length)h+=`<div class="row"><b>Blocked (not allowed at this step):</b> ${meta.skipped.map(esc).join(", ")}</div>`;
  if(meta.verification)h+=`<div class="row"><b>Check:</b> ${esc(meta.verification)}</div>`;
  if(meta.awaiting)h+=`<div class="row"><b>Waiting for your approval:</b> <code>${esc(meta.awaiting)}</code> was not run, because it cannot be undone.</div>`;
  if(meta.approved?.length)h+=`<div class="row"><b>Approved by you:</b> ${meta.approved.map(x=>`<code>${esc(x)}</code>`).join(", ")}</div>`;
