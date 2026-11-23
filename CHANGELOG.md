@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.4 - 2026-11-23
+- **Automation's document fallback is now visible and cited:** when no fixed rule matches, level 04 searches the company documents (the level 03 RAG step), answers with numbered citations and a Sources list, and "What this level did" says "No fixed rule matched your message, so it fell back to searching the company documents". If nothing relevant is found it says so without calling Claude.
+
 ## 0.6.3 - 2026-11-23
 - **Weak matches dropped from search:** the knowledge search keeps only passages scoring more than half as well as the best match. A question about sharing a card PIN no longer pulls in "PIN code" (postal code) from the branch passage. Applies to RAG, Automation and Agentic.
 - **Automation summaries use only relevant results** and no longer list "lower-relevance" passages.

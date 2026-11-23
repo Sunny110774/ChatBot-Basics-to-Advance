@@ -339,3 +339,15 @@ def test_weak_matches_are_dropped(env):
     hits = app.retrieve("Can I share my card PIN or OTP with bank staff?")
     assert [h["source"] for h in hits] == ["cards.md"]  # 'PIN code' (postal code) and 'the PIN is correct' are not relevant
     assert [h["source"] for h in app.retrieve("I lost my card. What should I do?")] == ["cards.md"]
+
+
+def test_automation_falls_back_to_cited_document_search(env):
+    _, client, calls = env
+    _, r = ask(client, "automation", "Can I share my card PIN or OTP with bank staff?")
+    meta = r.json()["metadata"]
+    assert meta["fallback"] and "No fixed rule matched" in meta["did"]
+    assert [s["n"] for s in meta["sources"]] == [1] and meta["sources"][0]["source"] == "cards.md"  # numbered, like level 03
+    n = len(calls)
+    _, r = ask(client, "automation", "What is the capital of France?")
+    meta = r.json()["metadata"]
+    assert meta["sources"] == [] and "won't guess" in r.json()["answer"] and len(calls) == n  # nothing found: no Claude call

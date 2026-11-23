@@ -642,10 +642,29 @@ def chat(b: ChatReq):
 
     elif b.bot == "automation":
         results = automation_tools(q, b.message)
-        if not results:
-            results = [{"tool": "search_knowledge", "result": tool("search_knowledge", {"query": b.message})}]
         held = [r["tool"] for r in results if r["tool"] in NEEDS_APPROVAL]
-        if held:
+        if not results:
+            # No fixed rule matched: fall back to the document search (the RAG step from level 03), with citations.
+            hits = retrieve(b.message)
+            docs = number_sources(hits)
+            meta["tools"] = [{"tool": "search_knowledge", "result": {"passages_found": len(hits)}}]
+            meta["sources"] = [{"n": d["n"], "title": d["title"], "source": d["source"], "score": d["score"],
+                                "passages": [p[:400] for p in d["passages"]]} for d in docs]
+            meta["fallback"] = True
+            if not hits:
+                answer = ("None of my fixed rules matched that, and Bluewater Bank's documents don't cover it either, so I won't guess. "
+                          "I can check your leave balance, block or replace a card, check a payment, raise a ticket or draft an email.")
+                meta["did"] = "No fixed rule matched your message, so it searched the company documents as a fallback. Nothing relevant was found, so Claude was not called."
+            else:
+                context = "\n\n".join(f"[{d['n']}] {d['title']}\n" + "\n".join(d["passages"]) for d in docs)
+                answer = llm("You are Bluewater Bank's AI Automation demo (a fictional bank). No automated task matched the user's message, "
+                             "so answer it using ONLY the numbered sources below. If they do not contain the answer, say so plainly. "
+                             "After each fact, cite its source number in square brackets, for example [1]. Never cite file names and do not add "
+                             "a list of sources; the app shows them. Do not ask a question or offer any further action.\n\nContext:\n" + context, msgs)
+                meta["did"] = (f"No fixed rule matched your message, so it fell back to searching the company documents (the level 03 RAG step), "
+                               f"found {len(hits)} relevant passage(s) in {len(docs)} document(s), and Claude answered from them with numbered citations.")
+            meta["options"] = automation_follow_ups(set())
+        elif held:
             action = held[0]
             meta["awaiting"] = action
             meta["tools"] = [r for r in results if r["tool"] not in NEEDS_APPROVAL]
