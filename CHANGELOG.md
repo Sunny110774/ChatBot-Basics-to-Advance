@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9.3 - 2026-11-23
+- Added **PM004_09 Presentation** (PDF, 9 slides): the problem, one slide per level, how to choose the level, what makes it ready for live use. Linked from the README.
+
 ## 0.9.2 - 2026-11-23
 - **Guardrails section in every document:** the controls already built (input, grounding, action, safe failure, scope, cost and abuse, security and privacy, transparency) listed in one place, with the gaps still to close for live use (prompt-injection checks, personal-data masking, moderation, evaluation set). README and charter no longer describe guardrails as future-only.
 
