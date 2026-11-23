@@ -1,6 +1,6 @@
 # ChatBot: Basics to Advance
 
-Five working chatbots in one app, one for each stage of AI evolution, all serving the same fictional company (Bluewater Bank): **Basic rules, Generative AI, RAG, AI Automation and Agentic AI**. Ask the same question to each and see exactly what every level adds, and when it is worth using.
+**[Try it live](https://chatbot-basics-to-advance.onrender.com)** · Five working chatbots in one app, one for each stage of AI evolution, all serving the same fictional company (Bluewater Bank): **Basic rules, Generative AI, RAG, AI Automation and Agentic AI**. Ask the same question to each and see exactly what every level adds, and when it is worth using.
 
 > More AI does not automatically mean better AI. Start with the business requirement, then choose the minimum capability needed.
 
@@ -69,7 +69,7 @@ The demo already contains the employee side as mock tools (leave balance, leave 
 
 ## Quick start
 
-**Live demo:** _link added after deployment_ (Render free plan: the first visit may take up to a minute while it wakes up).
+**Live demo:** https://chatbot-basics-to-advance.onrender.com (Render free plan: the first visit may take up to a minute while it wakes up; AI answers are capped per day).
 
 
 **Windows**

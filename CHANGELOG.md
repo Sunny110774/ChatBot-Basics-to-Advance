@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0 - 2026-11-23
+- **Released.** Live demo (Prod): https://chatbot-basics-to-advance.onrender.com, deployed on Render from `main`; UAT from `uat`. Both tested live: RAG answers with citations, the agent shows Plan / Act / Verify, hosted mode on (settings locked, private chats, daily caps).
+- Presentation and README carry the live link.
+
 ## 0.9.3 - 2026-11-23
 - Added **PM004_09 Presentation** (PDF, 9 slides): the problem, one slide per level, how to choose the level, what makes it ready for live use. Linked from the README.
 
