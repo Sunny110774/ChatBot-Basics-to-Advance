@@ -60,6 +60,12 @@ Bot 05 is the superset of the other levels, so its calls show every part of the 
 
 ![API calls for Bot 05: browser, FastAPI, tools, Claude API and SQLite in order](images/workflow-agentic-api-calls.png)
 
+### 3.2 Bot 05 at a glance: one question through the system
+
+The same flow as one picture: each row is a part of the system, the numbers give the order, diamonds are decisions and the three dark boxes are the paid Claude calls. Start here when explaining the system; use the sequence diagram above for the exact API calls.
+
+![Bot 05 swimlane: you, FastAPI, tools, Claude API and database, steps 1 to 11](images/workflow-agentic-swimlane.png)
+
 ## 4. Error and safety paths
 
 Every failure returns a clear message instead of a guess, and the safety rules are enforced in code and covered by tests.
