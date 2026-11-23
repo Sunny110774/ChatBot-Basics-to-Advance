@@ -3,7 +3,7 @@
 All five work on one fictional company, Bluewater Bank, so their answers can be compared
 like for like: the same questions, the same knowledge files and the same demo tools.
 """
-import os, re, json, sqlite3, uuid
+import os, re, json, sqlite3, uuid, contextvars
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -18,7 +18,9 @@ DB = Path(os.getenv("CHATBOT_DB", str(ROOT / "chat_history.db")))  # override fo
 ENV_FILE = Path(os.getenv("CHATBOT_ENV", str(ROOT / ".env")))      # override for tests
 KD = ROOT / "knowledge"
 MODELS = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"]
-MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))
+MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))  # cap for answers the user reads
+JSON_MAX_TOKENS = 500  # cap for short internal JSON steps (agent plan and decision)
+HISTORY_MESSAGES = int(os.getenv("CHATBOT_HISTORY_MESSAGES", "8"))  # only the most recent turns are re-sent to Claude
 
 
 # ---------- settings: .env file next to app.py, editable from the in-app Settings screen ----------
@@ -183,11 +185,17 @@ def clean_messages(msgs):
     return out
 
 
-def llm(system, msgs):
+USAGE = contextvars.ContextVar("usage", default=None)  # token use of the current request, one entry per Claude call
+
+
+def llm(system, msgs, max_tokens=None, step="answer"):
     try:
-        r = client().messages.create(model=model(), max_tokens=MAX_TOKENS,
+        r = client().messages.create(model=model(), max_tokens=max_tokens or MAX_TOKENS,
                                      system=system, messages=clean_messages(msgs))
         text = "".join(b.text for b in r.content if getattr(b, "type", "") == "text").strip()
+        u, log = getattr(r, "usage", None), USAGE.get()
+        if log is not None:
+            log.append({"step": step, "input": int(getattr(u, "input_tokens", 0) or 0), "output": int(getattr(u, "output_tokens", 0) or 0)})
         if LAST_CHECK["status"] != "ok":
             record_check(True, f"Connected to Claude ({model()}).")
         return text or "No response was generated."
@@ -294,6 +302,12 @@ TOPICS = [
                                             "How much notice do I need to give for leave?"]},
     {"label": "Write an email", "questions": ["Draft an email to my manager asking for two days' leave next week.",
                                               "Draft an email asking for an update on payment PAY-1042."]},
+]
+# Goals where the next step depends on what the agent finds: this is where an agent earns its extra cost.
+AGENT_GOALS = [
+    "My payment PAY-1042 hasn't arrived and I need it sorted today.",
+    "I lost my card while travelling. Sort it out.",
+    "Plan two days of leave next week and draft the email to my manager.",
 ]
 MENU_INTRO = "Choose a topic, then a question. Every bot offers the same questions, so you can compare what each level adds."
 FOLLOW_UPS = ("\n\nAfter your answer, add one final line in exactly this format: "
@@ -468,6 +482,30 @@ def automation_follow_ups(done):
     return out[:3] + ["Main menu"]
 
 
+TOOL_NAMES = {"search_knowledge": "company documents", "leave_balance": "leave balance", "leave_policy": "leave policy",
+              "payment_status": "payment status", "create_ticket": "raised a support ticket", "email_draft": "drafted an email",
+              "block_card": "block the card", "order_replacement_card": "ordered a replacement card"}
+
+
+def plain(names):
+    return ", ".join(TOOL_NAMES.get(n, n) for n in names)
+
+
+def finish_verify(answer, meta):
+    """Take Claude's VERIFY line out of the answer and put it in the Verify step."""
+    m = re.search(r"(?:\A|\n)[ \t]*\**[ \t]*VERIFY[ \t]*\**[ \t]*:\s*(.+?)\s*(?=\n|$)", answer, re.I)
+    result, reason = "not reported", "Claude did not report a goal check."
+    if m:
+        parts = [p.strip(" *") for p in m.group(1).split("|", 1)]
+        result = parts[0].lower() if parts[0].lower() in ("met", "partly", "not met") else "partly"
+        reason = parts[1] if len(parts) > 1 else ""
+        answer = (answer[:m.start()] + answer[m.end():]).strip()
+    meta["verify"].update(result=result, reason=reason)
+    meta["verification"] = f"Goal {result}" + (f": {reason}" if reason else "")
+    meta["workflow"][-1]["detail"] = f"Goal {result}" + (f": {reason}" if reason else "")
+    return answer
+
+
 def pending_approval(prior):
     """The action the last assistant answer asked the user to approve, if any."""
     for m in reversed(prior):
@@ -539,7 +577,10 @@ def menu(bot: str = "basic"):
     """Topic menu for any bot. Basic sends the topic label (opens its menu branch); in AI bots a topic opens its list of shared questions."""
     if bot == "basic":
         return {"answer": BASIC_TREE["menu"]["answer"], "topics": [{"label": l, "send": l} for l in basic_options("menu") if l != "Main menu"]}
-    return {"answer": MENU_INTRO, "topics": [{"label": t["label"], "questions": t["questions"]} for t in TOPICS]}
+    out = {"answer": MENU_INTRO, "topics": [{"label": t["label"], "questions": t["questions"]} for t in TOPICS]}
+    if bot == "agentic":
+        out["goals"] = AGENT_GOALS
+    return out
 
 
 @app.get("/api/conversations")
@@ -587,7 +628,9 @@ def chat(b: ChatReq):
 
     save(b.conversation_id, "user", b.message)
     prior = history(b.conversation_id)[:-1]
-    msgs = [{"role": m["role"], "content": m["content"]} for m in prior] + [{"role": "user", "content": b.message}]
+    msgs = [{"role": m["role"], "content": m["content"]} for m in prior[-HISTORY_MESSAGES:]] + [{"role": "user", "content": b.message}]
+    usage_log = []
+    USAGE.set(usage_log)
     q = b.message.lower()
     meta = {"mode": b.bot, "sources": [], "tools": []}
 
@@ -693,7 +736,7 @@ def chat(b: ChatReq):
             "search_knowledge (args: query, use the user's own words), leave_balance, leave_policy, payment_status (args: reference). "
             "Actions (tickets, emails, card changes) are decided later, after you see the lookup results. "
             "Return JSON only, with no other text: "
-            "{\"goal\":\"...\",\"plan\":[...],\"lookups\":[{\"name\":\"...\",\"args\":{}}]}.", msgs)
+            "{\"goal\":\"...\",\"plan\":[...],\"lookups\":[{\"name\":\"...\",\"args\":{}}]}.", msgs, JSON_MAX_TOKENS, "plan")
         try:
             obj = parse_json(plan)
         except Exception:
@@ -715,13 +758,16 @@ def chat(b: ChatReq):
             "Decide whether any action is needed. Available actions: create_ticket (args: summary), email_draft (args: subject, body), "
             "block_card, order_replacement_card. Take an action ONLY if the user asked for it, or the goal clearly cannot be met without it "
             "(for example, a reported lost or stolen card must be blocked). Never raise a ticket or draft an email for a question the lookups "
-            "already answer. Stay within the user's question. Return the decision as JSON only, with no other text: "
-            "{\"actions\":[{\"name\":\"...\",\"args\":{},\"reason\":\"...\"}],\"goal_met\":\"yes|partly|no\",\"check\":\"one sentence\"}"
-            "\n\nGoal: " + goal + "\n\nLookup results:\n" + json.dumps(observed), msgs)
+            "already answer. Stay within the user's question. Also explain honestly, in one or two plain sentences for a non-technical viewer, "
+            "why this request did or did not need an agent: what depended on judging the results (choosing or skipping actions, combining "
+            "several lookups, deciding the next step). If a simpler level would have been enough, say which one (03 RAG for a plain document "
+            "question, 04 Automation for a fixed task). Return the decision as JSON only, with no other text: "
+            "{\"actions\":[{\"name\":\"...\",\"args\":{},\"reason\":\"...\"}],\"why_agent\":\"...\"}"
+            "\n\nGoal: " + goal + "\n\nLookup results:\n" + json.dumps(observed), msgs, JSON_MAX_TOKENS, "decide")
         try:
             decision = parse_json(decision_raw)
         except Exception:
-            decision = {"actions": [], "goal_met": "partly", "check": "The decision could not be read, so no action was taken."}
+            decision = {"actions": [], "why_agent": "The agent's decision could not be read, so it safely took no action."}
         acted, held, reasons = [], [], []
         for item in (decision.get("actions") or [])[:2]:
             name = item.get("name") if isinstance(item, dict) else None
@@ -737,27 +783,48 @@ def chat(b: ChatReq):
         meta["tools"] = observed + acted
         meta["skipped"] = skipped
         meta["decision"] = "; ".join(reasons) if reasons else "No action needed: the lookups answer the question."
-        meta["verification"] = str(decision.get("check") or "")
+        meta["why_agent"] = str(decision.get("why_agent") or "")
         if held:
             meta["awaiting"] = held[0]
+        # App-side checks for the Verify step; Claude adds its own goal check in the answer (VERIFY line).
+        checks = ["Every tool used is on the allow-list" + (f" ({len(skipped)} blocked)" if skipped else "")]
+        failed = [t["tool"] for t in observed + acted if isinstance(t["result"], dict) and "error" in t["result"]]
+        checks.append(f"Tool errors: {', '.join(failed)}" if failed else "All tools that ran returned a result")
+        if held:
+            checks.append(f"{held[0]} cannot be undone, so it is waiting for your approval")
+        meta["verify"] = {"result": "", "reason": "", "checks": checks}
+        looked = plain(t["tool"] for t in observed)
+        did_act = plain(t["tool"] for t in acted) or "no action needed"
+        meta["workflow"] = [
+            {"step": "Plan", "detail": f"{len(meta['plan'])} steps towards: {goal[:120]}"},
+            {"step": "Act", "detail": f"Checked {looked}, then decided: {did_act}" + (f"; asked your approval to {plain([held[0]])}" if held else "")},
+            {"step": "Verify", "detail": ""},
+        ]
 
         # 3. Answer: a short, customer-facing reply. Internals stay in the "What this level did" panel.
+        verify_note = (" Then verify the outcome against the goal: add a line in exactly this format, before any other final line: "
+                       "VERIFY: <met|partly|not met> | <one short sentence saying why>.")
         approval_note = (f" One step was NOT run because it cannot be undone: {NEEDS_APPROVAL[held[0]]}. "
-                         "End by asking the user to approve it. Do not add follow-up questions."
-                         if held else FOLLOW_UPS + " Only suggest follow-ups the available tools can handle.")
+                         "End the reply by asking the user to approve it." + verify_note + " Do not add follow-up questions."
+                         if held else verify_note + FOLLOW_UPS + " Only suggest follow-ups the available tools can handle.")
         answer = llm("You are Bluewater Bank's Agentic AI demo (a fictional bank). Write a short, clear reply to the user, under 120 words "
                      "(longer only for a drafted email). Answer only what the user asked, using only the results below. Do not mention tools, "
                      "file names, scores, plans or internal steps; the app shows them separately. If an action was taken, say what was done. "
                      "Add one short sentence that this is demo data and nothing real was changed." + approval_note
-                     + "\n\nGoal: " + goal + "\n\nResults:\n" + json.dumps({"lookups": observed, "actions": acted, "awaiting_approval": held}), msgs)
+                     + "\n\nGoal: " + goal + "\n\nResults:\n" + json.dumps({"lookups": observed, "actions": acted, "awaiting_approval": held}), msgs,
+                     step="answer + verify")
         if held:
             meta["options"] = [APPROVE[held[0]], DECLINE[held[0]]]
-        meta["did"] = ("Claude planned and ran read-only lookups first, looked at the results, then decided whether any action was needed: "
+        meta["did"] = ("Plan: Claude set the goal and planned. Act: it ran read-only lookups first, looked at the results, then decided whether any action was needed: "
                        + ("it took the action(s) below" if acted else "none was") + (", and paused one that cannot be undone until you approve it" if held else "")
-                       + ". The app ran only allow-listed tools.")
+                       + ". Verify: the app checked the tools, and Claude checked the outcome against the goal.")
 
+    meta["usage"] = {"calls": len(usage_log), "input": sum(u["input"] for u in usage_log),
+                     "output": sum(u["output"] for u in usage_log), "steps": usage_log}
     if b.bot != "basic":
         answer, follow = split_follow_ups(answer)
+        if b.bot == "agentic" and "verify" in meta:
+            answer = finish_verify(answer, meta)
         if "options" not in meta:  # fixed options (approvals, automation tasks) take priority
             meta["options"] = (follow + ["Main menu"]) if follow else ["Main menu"]
     save(b.conversation_id, "assistant", answer, meta)

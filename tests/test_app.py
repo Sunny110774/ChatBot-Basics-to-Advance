@@ -40,7 +40,8 @@ class FakeMessages:
             text = "Here is the plan:\n```json\n" + json.dumps(plan) + "\n```"
         else:
             text = "Fake Claude reply" + ("\n\nFOLLOW-UPS: Next one? | Next two? | Next three?" if "FOLLOW-UPS" in kw["system"] else "")
-        return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)])
+        return types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=text)],
+                                     usage=types.SimpleNamespace(input_tokens=100, output_tokens=20))
 
 
 @pytest.fixture
@@ -377,3 +378,46 @@ def test_automation_falls_back_to_cited_document_search(env):
     _, r = ask(client, "automation", "What is the capital of France?")
     meta = r.json()["metadata"]
     assert meta["sources"] == [] and "won't guess" in r.json()["answer"] and len(calls) == n  # nothing found: no Claude call
+
+
+def test_agent_shows_plan_act_verify_and_why(env, monkeypatch):
+    app, client, calls = env
+    agent = ScriptedAgent(calls, {"goal": "Payment PAY-1042 sorted today", "plan": ["Check the payment", "Decide", "Answer"],
+                                  "lookups": [{"name": "payment_status", "args": {"reference": "PAY-1042"}}]},
+                          {"actions": [{"name": "create_ticket", "args": {"summary": "PAY-1042 held"}, "reason": "user needs it today"}],
+                           "why_agent": "The payment was held, so the agent had to judge whether to escalate."})
+    real = agent.inner.create
+    agent.inner.create = lambda **kw: types.SimpleNamespace(content=[types.SimpleNamespace(type="text", text=(
+        "Your payment is held for a routine check. I raised ticket DEMO-1.\n\nVERIFY: partly | Escalated, but release depends on the check."
+        "\n\nFOLLOW-UPS: Check again? | Draft an email? | Main menu?"))], usage=types.SimpleNamespace(input_tokens=300, output_tokens=60)) \
+        if "short, clear reply" in kw["system"] else real(**kw)
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=agent))
+    _, r = ask(client, "agentic", "My payment PAY-1042 hasn't arrived and I need it sorted today.")
+    body = r.json()
+    meta = body["metadata"]
+    assert [w["step"] for w in meta["workflow"]] == ["Plan", "Act", "Verify"]
+    assert meta["workflow"][1]["detail"] == "Checked payment status, then decided: raised a support ticket"
+    assert meta["verify"]["result"] == "partly" and meta["workflow"][2]["detail"].startswith("Goal partly")
+    assert "VERIFY" not in body["answer"] and "FOLLOW-UPS" not in body["answer"]  # both lines moved out of the reply
+    assert meta["why_agent"].startswith("The payment was held")
+    assert meta["usage"]["calls"] == 3 and meta["usage"]["input"] == 300  # plan and decide scripted without usage
+
+
+def test_token_usage_and_history_cap(env, monkeypatch):
+    app, client, calls = env
+    _, r = ask(client, "generative", "hello")
+    assert r.json()["metadata"]["usage"] == {"calls": 1, "input": 100, "output": 20,
+                                             "steps": [{"step": "answer", "input": 100, "output": 20}]}
+    _, r = ask(client, "basic", "Banking hours")
+    assert r.json()["metadata"]["usage"]["calls"] == 0  # rules only: no tokens
+    monkeypatch.setattr(app, "HISTORY_MESSAGES", 2)
+    cid, _ = ask(client, "generative", "one")
+    for q in ["two", "three", "four"]:
+        ask(client, "generative", q, cid)
+    assert len(calls[-1]["messages"]) == 3  # last 2 saved messages + the new question
+
+
+def test_agent_goals_on_welcome(env):
+    _, client, _ = env
+    assert len(client.get("/api/menu?bot=agentic").json()["goals"]) == 3
+    assert "goals" not in client.get("/api/menu?bot=rag").json()
