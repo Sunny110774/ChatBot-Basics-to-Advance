@@ -55,6 +55,9 @@ Real-world examples for each level, and where each is the wrong choice, are in t
 
 ## Quick start
 
+**Live demo:** _link added after deployment_ (Render free plan: the first visit may take up to a minute while it wakes up).
+
+
 **Windows**
 1. Install Python 3.10+ (tick "Add Python to PATH").
 2. Double-click `run_windows.bat`.
@@ -77,7 +80,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The 31-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources, drops weak matches and refuses off-topic questions, only allow-listed tools ever run, a card is never blocked without a Yes, the agent looks before it acts and shows Plan / Act / Verify, token use is recorded and history is capped, settings never return the key, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
+The 35-test suite covers all five modes offline: Claude is replaced by a fake client, so no API key, internet or credit is needed. It checks that Basic never calls the model, RAG cites sources, drops weak matches and refuses off-topic questions, only allow-listed tools ever run, a card is never blocked without a Yes, the agent looks before it acts and shows Plan / Act / Verify, token use is recorded and history is capped, settings never return the key, the hosted demo keeps each visitor's chats private and enforces daily caps, and key, workspace and credit problems produce plain-English fixes. Tests run automatically on every push (GitHub Actions).
 
 ## Project structure
 

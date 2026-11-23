@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 - 2026-11-23
+- **Hosted mode for UAT and Prod** (`CHATBOT_HOSTED=1`): Settings locked and the key never shown; each browser sees only its own chats; daily caps on Claude calls for the whole app and per visitor (Basic keeps working when reached); message length limit; a footer explaining the public demo, with an environment tag (UAT).
+- **Render blueprint** (`render.yaml`): UAT from the `uat` branch, Prod from `main`, free plan, Singapore region, health check, secrets entered in the dashboard.
+- Runbook section 8: release flow (UAT, then Prod), rollback, hosted-mode settings and free-plan behaviour.
+- 35 tests (4 new for hosted mode).
+
 ## 0.8.3 - 2026-11-23
 - **Documents brought up to date with 0.8.2:** README, charter (v0.2), executive summary, runbook and workflows now describe the current app: Plan / Act / Verify, look-then-decide agent, approval for irreversible actions, numbered citations, weak-match cut-off, Automation's fixed follow-ups and cited fallback, gold agent goals, token use per answer, history cap and the 31-test suite.
 - Technical and functional workflow diagrams redrawn (level 05 now three Claude calls; 04 can make none).

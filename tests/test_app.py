@@ -448,3 +448,63 @@ def test_no_manager_emails_and_agent_goal_per_topic(env):
     texts = json.dumps([app.TOPICS, app.AGENT_GOALS, app.AUTOMATION_TASKS]).lower()
     assert "to my manager" not in texts
     assert app.basic("Write an email")[1] == ["Payment update email", "Missing card email", "Main menu"]
+
+
+@pytest.fixture
+def hosted(tmp_path, monkeypatch):
+    """The app as deployed on UAT / Prod: CHATBOT_HOSTED=1, small caps so the tests can hit them."""
+    monkeypatch.setenv("CHATBOT_HOSTED", "1")
+    monkeypatch.setenv("CHATBOT_ENV_NAME", "UAT")
+    monkeypatch.setenv("CHATBOT_DAILY_CLAUDE_CALLS", "5")
+    monkeypatch.setenv("CHATBOT_VISITOR_DAILY_CALLS", "2")
+    monkeypatch.setenv("CHATBOT_MAX_MESSAGE_CHARS", "50")
+    monkeypatch.setenv("CHATBOT_DB", str(tmp_path / "hosted.db"))
+    monkeypatch.setenv("CHATBOT_ENV", str(tmp_path / ".env"))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", "wrkspc_test")
+    sys.modules.pop("app", None)
+    app = importlib.import_module("app")
+    calls = []
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=FakeMessages(calls)))
+    from fastapi.testclient import TestClient
+    yield app, TestClient(app.app), TestClient(app.app), calls
+    sys.modules.pop("app", None)
+
+
+def test_hosted_settings_are_locked(hosted):
+    _, a, _, _ = hosted
+    r = a.post("/api/settings", json={"api_key": "sk-ant-" + "x" * 40, "workspace_id": "", "model": ""})
+    assert r.status_code == 403
+    s = a.get("/api/settings").json()
+    assert s["locked"] and s["key_hint"] == ""  # not even a hint of the key on the public page
+    h = a.get("/api/health").json()
+    assert h["hosted"] and h["env_name"] == "UAT" and h["limits"]["visitor_daily_calls"] == 2
+
+
+def test_hosted_chats_are_private_to_each_visitor(hosted):
+    _, alice, bob, _ = hosted
+    cid, r = ask(alice, "basic", "Cards")
+    assert r.status_code == 200 and "visitor" in alice.cookies
+    assert [c["id"] for c in alice.get("/api/conversations?bot=basic").json()] == [cid]
+    assert bob.get("/api/conversations?bot=basic").json() == []  # a second browser sees nothing
+    assert bob.get(f"/api/conversations/{cid}").status_code == 404
+    assert bob.post("/api/chat", json={"conversation_id": cid, "bot": "basic", "message": "hi"}).status_code == 404
+
+
+def test_hosted_daily_caps_and_message_length(hosted):
+    _, alice, bob, calls = hosted
+    for _ in range(2):
+        assert ask(alice, "generative", "hello")[1].status_code == 200
+    r = ask(alice, "generative", "hello")[1]
+    assert r.status_code == 429 and "today's AI limit" in r.json()["detail"] and len(calls) == 2  # per-visitor cap, no call made
+    assert ask(alice, "basic", "Cards")[1].status_code == 200  # Basic still works
+    for _ in range(2):
+        assert ask(bob, "generative", "hi")[1].status_code == 200
+    assert ask(bob, "generative", "hi")[1].status_code == 429
+    assert ask(alice, "generative", "x" * 51)[1].status_code == 400  # too long for the public demo
+
+
+def test_local_mode_has_no_caps(env):
+    app, client, _ = env
+    assert not app.HOSTED and app.DAILY_CALLS == 0 and app.VISITOR_DAILY_CALLS == 0
+    assert client.get("/api/health").json()["hosted"] is False

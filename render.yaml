@@ -1,0 +1,53 @@
+# Render Blueprint: two environments from one repo.
+#   UAT  = branch "uat"  -> https://chatbot-basics-to-advance-uat.onrender.com (if the name is free)
+#   Prod = branch "main" -> https://chatbot-basics-to-advance.onrender.com     (if the name is free)
+# Release flow: push to uat -> test on UAT -> merge uat into main -> Prod deploys.
+# Secrets (ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID) are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: chatbot-basics-to-advance-uat
+    runtime: python
+    plan: free
+    region: singapore
+    branch: uat
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: CHATBOT_HOSTED
+        value: "1"
+      - key: CHATBOT_ENV_NAME
+        value: UAT
+      - key: CHATBOT_DAILY_CLAUDE_CALLS
+        value: "100"
+      - key: CHATBOT_VISITOR_DAILY_CALLS
+        value: "40"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_WORKSPACE_ID
+        sync: false
+
+  - type: web
+    name: chatbot-basics-to-advance
+    runtime: python
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: CHATBOT_HOSTED
+        value: "1"
+      - key: CHATBOT_DAILY_CLAUDE_CALLS
+        value: "300"
+      - key: CHATBOT_VISITOR_DAILY_CALLS
+        value: "40"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_WORKSPACE_ID
+        sync: false

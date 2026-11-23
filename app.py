@@ -7,7 +7,7 @@ import os, re, json, sqlite3, uuid, contextvars
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -21,6 +21,16 @@ MODELS = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"]
 MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))  # cap for answers the user reads
 JSON_MAX_TOKENS = 800  # cap for short internal JSON steps (agent plan and decision)
 HISTORY_MESSAGES = int(os.getenv("CHATBOT_HISTORY_MESSAGES", "8"))  # only the most recent turns are re-sent to Claude
+
+# ---------- hosted mode (public UAT / Prod): set CHATBOT_HOSTED=1 on the server ----------
+# Locks Settings (the key lives in the host's secret store), keeps each visitor's chats private to their browser,
+# caps Claude calls per day so a public link cannot run up the bill, and limits message length.
+HOSTED = os.getenv("CHATBOT_HOSTED", "").lower() in ("1", "true", "yes")
+DAILY_CALLS = int(os.getenv("CHATBOT_DAILY_CLAUDE_CALLS", "300" if HOSTED else "0"))      # whole app; 0 = no cap
+VISITOR_DAILY_CALLS = int(os.getenv("CHATBOT_VISITOR_DAILY_CALLS", "40" if HOSTED else "0"))  # per visitor; 0 = no cap
+MAX_MESSAGE_CHARS = int(os.getenv("CHATBOT_MAX_MESSAGE_CHARS", "1000" if HOSTED else "0"))  # 0 = no limit
+ENV_NAME = os.getenv("CHATBOT_ENV_NAME", "")  # shown on the page, e.g. "UAT"
+VISITOR = contextvars.ContextVar("visitor", default="local")
 
 
 # ---------- settings: .env file next to app.py, editable from the in-app Settings screen ----------
@@ -82,6 +92,36 @@ with conn() as c:
     cols = [r["name"] for r in c.execute("PRAGMA table_info(messages)").fetchall()]
     if "meta" not in cols:  # older databases: add the column that stores "what this level did"
         c.execute("ALTER TABLE messages ADD COLUMN meta TEXT")
+    ccols = [r["name"] for r in c.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "visitor" not in ccols:  # chats belong to one visitor; local installs use "local"
+        c.execute("ALTER TABLE conversations ADD COLUMN visitor TEXT DEFAULT 'local'")
+    c.execute("CREATE TABLE IF NOT EXISTS usage_daily(day TEXT, visitor TEXT, calls INTEGER, PRIMARY KEY(day, visitor))")
+
+
+def calls_today(visitor=None):
+    day = now()[:10]
+    with conn() as c:
+        if visitor is None:
+            r = c.execute("SELECT COALESCE(SUM(calls),0) AS n FROM usage_daily WHERE day=?", (day,)).fetchone()
+        else:
+            r = c.execute("SELECT COALESCE(SUM(calls),0) AS n FROM usage_daily WHERE day=? AND visitor=?", (day, visitor)).fetchone()
+    return int(r["n"])
+
+
+def check_daily_cap():
+    """Raise a friendly error before a Claude call if today's demo limit is used up."""
+    if DAILY_CALLS and calls_today() >= DAILY_CALLS:
+        raise HTTPException(429, "The public demo has used today's AI limit. Bot 01 (Basic) still works; "
+                                 "the AI bots reset at midnight UTC. To run it without limits, use the GitHub version locally.")
+    if VISITOR_DAILY_CALLS and calls_today(VISITOR.get()) >= VISITOR_DAILY_CALLS:
+        raise HTTPException(429, "You have reached today's AI limit for this demo. Bot 01 (Basic) still works, "
+                                 "and the limit resets at midnight UTC.")
+
+
+def count_call():
+    with conn() as c:
+        c.execute("INSERT INTO usage_daily(day, visitor, calls) VALUES(?,?,1) ON CONFLICT(day, visitor) DO UPDATE SET calls=calls+1",
+                  (now()[:10], VISITOR.get()))
 
 
 class NewConv(BaseModel):
@@ -189,6 +229,8 @@ USAGE = contextvars.ContextVar("usage", default=None)  # token use of the curren
 
 
 def llm(system, msgs, max_tokens=None, step="answer"):
+    check_daily_cap()
+    count_call()
     try:
         r = client().messages.create(model=model(), max_tokens=max_tokens or MAX_TOKENS,
                                      system=system, messages=clean_messages(msgs))
@@ -538,6 +580,22 @@ def approval_reply(text, action):
     return None
 
 
+# ---------- visitor identity: a random id in a cookie, so each browser only sees its own chats ----------
+@app.middleware("http")
+async def visitor_cookie(request: Request, call_next):
+    vid, new = "local", False
+    if HOSTED:
+        vid = request.cookies.get("visitor", "")
+        if not re.fullmatch(r"[0-9a-f]{32}", vid or ""):
+            vid, new = uuid.uuid4().hex, True
+    VISITOR.set(vid)
+    response = await call_next(request)
+    if new:
+        response.set_cookie("visitor", vid, max_age=60 * 60 * 24 * 30, httponly=True, samesite="lax",
+                            secure=request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
+    return response
+
+
 # ---------- routes ----------
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -546,18 +604,24 @@ def home():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "provider": "Anthropic", "model": model(),
-            "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY")), "connection": dict(LAST_CHECK)}
+    out = {"status": "ok", "provider": "Anthropic", "model": model(), "hosted": HOSTED, "env_name": ENV_NAME,
+           "llm_configured": bool(os.getenv("ANTHROPIC_API_KEY")), "connection": dict(LAST_CHECK)}
+    if HOSTED:
+        out["limits"] = {"daily_calls": DAILY_CALLS, "visitor_daily_calls": VISITOR_DAILY_CALLS, "max_message_chars": MAX_MESSAGE_CHARS,
+                         "your_calls_today": calls_today(VISITOR.get())}
+    return out
 
 
 @app.get("/api/settings")
 def get_settings():
-    return {"key_set": bool(os.getenv("ANTHROPIC_API_KEY")), "key_hint": key_hint(),
+    return {"key_set": bool(os.getenv("ANTHROPIC_API_KEY")), "key_hint": "" if HOSTED else key_hint(), "locked": HOSTED,
             "workspace_id": os.getenv("ANTHROPIC_WORKSPACE_ID", ""), "model": model(), "models": MODELS}
 
 
 @app.post("/api/settings")
 def put_settings(b: SettingsReq):
+    if HOSTED:
+        raise HTTPException(403, "Settings are locked on the hosted demo. The API key is stored securely on the server.")
     values = {}
     key = (b.api_key or "").strip()
     if key:
@@ -579,6 +643,8 @@ def put_settings(b: SettingsReq):
 
 @app.post("/api/settings/test")
 def settings_test():
+    if HOSTED and LAST_CHECK.get("status") == "ok":
+        return dict(LAST_CHECK)  # no repeated tests from the public page
     return test_connection()
 
 
@@ -603,10 +669,10 @@ def menu(bot: str = "basic"):
 def conversations(bot: Optional[str] = None):
     with conn() as c:
         if bot in BOTS:
-            rows = c.execute("SELECT * FROM conversations WHERE bot=? ORDER BY updated_at DESC", (bot,)).fetchall()
+            rows = c.execute("SELECT * FROM conversations WHERE bot=? AND visitor=? ORDER BY updated_at DESC", (bot, VISITOR.get())).fetchall()
         else:
-            rows = c.execute("SELECT * FROM conversations ORDER BY updated_at DESC").fetchall()
-    return [dict(r) for r in rows]
+            rows = c.execute("SELECT * FROM conversations WHERE visitor=? ORDER BY updated_at DESC", (VISITOR.get(),)).fetchall()
+    return [{k: r[k] for k in r.keys() if k != "visitor"} for r in rows]
 
 
 @app.post("/api/conversations")
@@ -616,17 +682,18 @@ def create(body: NewConv):
     cid = str(uuid.uuid4())
     ts = now()
     with conn() as c:
-        c.execute("INSERT INTO conversations VALUES(?,?,?,?,?)", (cid, body.bot, "New conversation", ts, ts))
+        c.execute("INSERT INTO conversations(id,bot,title,created_at,updated_at,visitor) VALUES(?,?,?,?,?,?)",
+                  (cid, body.bot, "New conversation", ts, ts, VISITOR.get()))
     return {"id": cid, "bot": body.bot, "title": "New conversation", "created_at": ts, "updated_at": ts}
 
 
 @app.get("/api/conversations/{cid}")
 def get_conv(cid):
     with conn() as c:
-        conv = c.execute("SELECT * FROM conversations WHERE id=?", (cid,)).fetchone()
+        conv = c.execute("SELECT * FROM conversations WHERE id=? AND visitor=?", (cid, VISITOR.get())).fetchone()
     if not conv:
         raise HTTPException(404, "Conversation not found")
-    return {"conversation": dict(conv), "messages": history(cid)}
+    return {"conversation": {k: conv[k] for k in conv.keys() if k != "visitor"}, "messages": history(cid)}
 
 
 @app.post("/api/chat")
@@ -635,8 +702,10 @@ def chat(b: ChatReq):
         raise HTTPException(400, "Unknown bot")
     if not b.message.strip():
         raise HTTPException(400, "Empty message")
+    if MAX_MESSAGE_CHARS and len(b.message) > MAX_MESSAGE_CHARS:
+        raise HTTPException(400, f"Please keep messages under {MAX_MESSAGE_CHARS} characters on the public demo.")
     with conn() as c:
-        conv = c.execute("SELECT * FROM conversations WHERE id=?", (b.conversation_id,)).fetchone()
+        conv = c.execute("SELECT * FROM conversations WHERE id=? AND visitor=?", (b.conversation_id, VISITOR.get())).fetchone()
     if not conv:
         raise HTTPException(404, "Conversation not found")
     if conv["bot"] != b.bot:

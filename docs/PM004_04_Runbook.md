@@ -132,3 +132,30 @@ Results vary slightly between runs for modes 02 to 05.
 **Backup and reset**
 - Backup: copy `chat_history.db` and `.env` somewhere safe while the app is stopped.
 - Clear all chats: stop the app and delete `chat_history.db`; a new empty one is created on start.
+
+## 8. Deployment: UAT and Prod
+
+Both environments run on Render's free plan from this repository, defined in `render.yaml`: **UAT** deploys from the `uat` branch and **Prod** from `main`.
+
+| Step | How |
+| --- | --- |
+| Release a change | Push to `uat`; Render deploys UAT automatically |
+| Test on UAT | Run the demo script (section 5) on the UAT link; the footer shows the **UAT** tag |
+| Promote to Prod | Merge `uat` into `main`; Render deploys Prod automatically |
+| Roll back | Revert the commit on `main` (or redeploy the previous deploy in Render) |
+| Secrets | `ANTHROPIC_API_KEY` and `ANTHROPIC_WORKSPACE_ID` are entered once in the Render dashboard; never in the repository |
+
+**Hosted mode** (`CHATBOT_HOSTED=1`, set by `render.yaml`) makes a public link safe:
+
+| Protection | Setting | UAT | Prod |
+| --- | --- | --- | --- |
+| Settings screen locked; key never shown | `CHATBOT_HOSTED` | On | On |
+| Each browser sees only its own chats (cookie) | `CHATBOT_HOSTED` | On | On |
+| Claude calls per day, whole app | `CHATBOT_DAILY_CLAUDE_CALLS` | 100 | 300 |
+| Claude calls per day, per visitor | `CHATBOT_VISITOR_DAILY_CALLS` | 40 | 40 |
+| Longest message | `CHATBOT_MAX_MESSAGE_CHARS` | 1,000 | 1,000 |
+
+When a cap is reached the AI bots say so politely and Basic keeps working; caps reset at midnight UTC. Also set a monthly spend limit in the Anthropic console as a second guard.
+
+**Free-plan behaviour:** the service sleeps after 15 minutes without visitors and the first visit then takes up to a minute to wake; chats are deleted whenever the service restarts or redeploys. Both are acceptable for a demo; a paid instance removes them.
+
