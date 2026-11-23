@@ -11,10 +11,10 @@ The app shows five chatbots side by side, from fixed rules to a goal-driven agen
 | # | Chatbot | What it does | Uses Claude | Try asking | Shown under the answer |
 | --- | --- | --- | --- | --- | --- |
 | 01 | Basic Chatbot | Guided menu: pick a topic, then follow-up buttons; typed questions matched by keyword; anything else returns the main menu | No | Click **Cards**, then **Block my card** | Follow-up buttons, mode: fixed_rules |
-| 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to my manager asking for two days' leave next week" | "What this level did" |
+| 02 | Generative AI | Writes a free answer from the question alone; knows nothing about Bluewater Bank | Yes | Starter: "Draft an email to the bank asking for an update on payment PAY-1042" | "What this level did" |
 | 03 | RAG | Finds matching text in `knowledge/` and answers only from it, with numbered citations and a Sources list (readable titles; click to see the passage) | Yes | "What is the leave policy?" | "What this level did": sources and match % |
 | 04 | AI Automation | Keyword rules decide which demo tools to run; Claude summarises the results | Yes | "I need leave next week, check my balance" | "What this level did": tools and mock results |
-| 05 | Agentic AI | Look, decide, act: Claude plans and runs read-only lookups, looks at the results, then decides whether any action is needed; irreversible actions wait for approval | Yes | "Plan two days of leave next week and draft the email to my manager" | "What this level did": plan, tools, blocked tools, check |
+| 05 | Agentic AI | Look, decide, act: Claude plans and runs read-only lookups, looks at the results, then decides whether any action is needed; irreversible actions wait for approval | Yes | A gold goal, e.g. "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank" | "What this level did": plan, tools, blocked tools, check |
 
 **Same workflow everywhere:** every bot opens with the same five topics. In 01 a topic opens its fixed menu; in 02 to 05 it opens the same short list of questions to pick from, so you can compare answers directly. Each answer ends with follow-up buttons and **Main menu**: fixed in 01; suggested by Claude in 02, 03 and 05; in 04 fixed next steps on the same topic (after a card block: order a replacement card or raise a card ticket).
 
@@ -80,7 +80,7 @@ Click the same topic in all five bots, in order, and point out what changes. The
 | "My payment was declined, what should I do?" | No rule: fallback message | General list of common causes | Uses `payments_support.md`: details to confirm, possible causes, escalate | Searches the knowledge base and summarises | Plans the checks, searches, suggests next steps |
 | "I lost my card. What should I do?" (the **Cards** topic) | Card menu: how to block it | General advice | Card policy with source [1] | Asks **Yes, block the card / No, keep it active** first; blocks the demo card only after Yes | Plans the steps, runs safe ones (e.g. a ticket), holds the block for your approval |
 | "My payment keeps failing, raise a support ticket" | Fallback | Explains it cannot raise tickets | Answers from the guides, no ticket | Also creates a demo ticket (DEMO-xxxxxxxx) | May plan search, then ticket, then a check |
-| "Can I take two days of leave next week? Draft the email to my manager." | Email flow rule asks for purpose, dates and tone | Drafts a generic email | Policy answer with source | Leave tools plus an email draft, marked not sent | Plans policy, balance and draft steps, then asks you to review |
+| "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank." (05 gold goal) | Payment update email template | Drafts a generic email | Payment guidance with source, no status | Payment status and an email draft, marked not sent | Checks the status first, then drafts an email that quotes it, and verifies |
 
 **What to say at each step**
 - 01 to 02: the bot now understands free text and writes, but it does not know your company.

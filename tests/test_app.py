@@ -100,7 +100,7 @@ def test_basic_menu_follow_ups(env):
     _, r = ask(client, "basic", "Block my card", cid)
     assert "level 04" in r.json()["answer"]
     _, r = ask(client, "basic", "Start a new mail")  # typed text matched by keyword
-    assert "Leave request email" in r.json()["metadata"]["options"]
+    assert "Payment update email" in r.json()["metadata"]["options"]
     assert calls == []
 
 
@@ -130,7 +130,7 @@ def test_rag_cites_sources_and_refuses_without_match(env):
 
 def test_automation_runs_allow_listed_tools(env):
     _, client, _ = env
-    _, r = ask(client, "automation", "I need leave, raise a ticket and draft an email to my manager")
+    _, r = ask(client, "automation", "I need leave, raise a ticket and draft an email to the bank")
     tools = [t["tool"] for t in r.json()["metadata"]["tools"]]
     assert tools == ["leave_balance", "leave_policy", "create_ticket", "email_draft"]
 
@@ -299,7 +299,7 @@ def test_automation_follow_ups_stay_on_topic(env):
     app, client, _ = env
     _, r = ask(client, "automation", "What is my leave balance?")
     opts = r.json()["metadata"]["options"]
-    assert opts == ["Draft an email to my manager about my leave", "Main menu"]  # on topic, never cards or payments
+    assert opts == ["Main menu"]  # leave has no follow-up task, and never offers cards or payments
     _, r = ask(client, "automation", "Order a replacement card")
     meta = r.json()["metadata"]
     assert [t["tool"] for t in meta["tools"]] == ["order_replacement_card"]  # no approval needed, nothing irreversible
@@ -438,3 +438,13 @@ def test_agent_proposes_card_block_for_lost_card_question(env, monkeypatch):
     meta = r.json()["metadata"]
     assert meta["awaiting"] == "block_card" and meta["options"] == ["Yes, block the card", "No, keep it active"]
     assert "propose block_card even if the user only asked what to do" in calls[1]["system"]
+
+
+def test_no_manager_emails_and_agent_goal_per_topic(env):
+    app, client, _ = env
+    agent = client.get("/api/menu?bot=agentic").json()["topics"]
+    assert all(t["goal"] for t in agent)  # every topic offers an agent goal in 05
+    assert all("goal" not in t for t in client.get("/api/menu?bot=rag").json()["topics"])  # other bots stay like for like
+    texts = json.dumps([app.TOPICS, app.AGENT_GOALS, app.AUTOMATION_TASKS]).lower()
+    assert "to my manager" not in texts
+    assert app.basic("Write an email")[1] == ["Payment update email", "Missing card email", "Main menu"]

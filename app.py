@@ -238,7 +238,7 @@ BASIC_TREE = {
     "leave": {"label": "Leave policy", "answer": "Planned leave needs manager approval and should be requested 5 working days ahead.",
               "options": ["apply", "balance", "menu"], "keywords": ["leave policy", "leave", "vacation", "holiday leave", "time off"]},
     "email": {"label": "Write an email", "answer": "I have fixed email templates. Choose one and fill in the [brackets] yourself.",
-              "options": ["leave_email", "status_email", "menu"], "keywords": ["email", "mail", "draft", "write"]},
+              "options": ["payment_email", "card_email", "menu"], "keywords": ["email", "mail", "draft", "write"]},
     # second level
     "holidays": {"label": "Holiday schedule", "answer": "Bluewater Bank branches are closed on weekends and national public holidays. Online banking stays available.",
                  "options": ["cutoff", "menu"], "keywords": ["holiday schedule", "public holiday", "closed"]},
@@ -253,16 +253,16 @@ BASIC_TREE = {
     "not_working": {"label": "Card not working", "answer": "Check that the card is not expired, blocked or over its limit, and that the PIN is correct. If it still fails, contact support.",
                     "options": ["block", "menu"], "keywords": ["not working", "declined", "failed", "card error"]},
     "apply": {"label": "How do I apply?", "answer": "Apply in the HR portal: Leave > New request, choose dates and the leave type, then submit for manager approval.",
-              "options": ["balance", "leave_email", "menu"], "keywords": ["apply", "how do i apply", "request leave"]},
+              "options": ["balance", "menu"], "keywords": ["apply", "how do i apply", "request leave"]},
     "balance": {"label": "My leave balance", "answer": "A Basic bot cannot see your balance: that needs a lookup in the HR system, which is what level 04 AI Automation adds.",
                 "options": ["apply", "menu"], "keywords": ["balance", "how many days", "remaining"]},
-    "leave_email": {"label": "Leave request email", "answer": "Subject: Leave request: [dates]\n\nHi [manager],\n\nI would like to take leave from [start date] to [end date] for [reason]. [Colleague] has agreed to cover urgent work, and my current tasks are up to date.\n\nCould you please approve?\n\nThanks,\n[Your name]",
-                    "options": ["status_email", "apply", "menu"], "keywords": ["leave email", "leave mail", "leave request email"]},
-    "status_email": {"label": "Status update email", "answer": "Subject: Status update: [project] ([date])\n\nHi [name],\n\nDone: [what was completed]\nNext: [what happens next]\nRisks or help needed: [any blockers]\n\nRegards,\n[Your name]",
-                     "options": ["leave_email", "menu"], "keywords": ["status email", "status update", "update email"]},
+    "payment_email": {"label": "Payment update email", "answer": "Subject: Update needed on payment [reference]\n\nDear Bluewater Bank support,\n\nI sent a payment of [amount] on [date], reference [reference], and it has not reached [recipient]. Please tell me its current status and when it will be released or returned.\n\nRegards,\n[Your name]\n[Registered phone number]",
+                      "options": ["card_email", "menu"], "keywords": ["payment email", "payment mail", "payment update email"]},
+    "card_email": {"label": "Missing card email", "answer": "Subject: Missing card: please block and replace\n\nDear Bluewater Bank support,\n\nMy card ending [last 4 digits] has been missing since [date]. Please confirm it is blocked and send a replacement to my registered address.\n\nRegards,\n[Your name]\n[Registered phone number]\n\n(Never include your full card number, CVV or PIN in an email.)",
+                   "options": ["block", "payment_email", "menu"], "keywords": ["card email", "card mail", "missing card email"]},
 }
 # Typed questions: check specific (second-level) topics before broad ones.
-BASIC_MATCH_ORDER = ["leave_email", "status_email", "holidays", "cutoff", "nearest", "atm_limit", "block", "not_working",
+BASIC_MATCH_ORDER = ["payment_email", "card_email", "holidays", "cutoff", "nearest", "atm_limit", "block", "not_working",
                      "apply", "balance", "hours", "branches", "cards", "leave", "email", "menu"]
 
 
@@ -291,23 +291,29 @@ def basic(q):
 TOPICS = [
     {"label": "Banking hours", "questions": ["What are Bluewater Bank's banking hours?",
                                              "What is the same-day payment cut-off?",
-                                             "Is online banking available at weekends?"]},
+                                             "Is online banking available at weekends?"],
+     "goal": "I need to send a payment today. Check the cut-off and tell me if I can still make it."},
     {"label": "Branches and ATMs", "questions": ["How do I find the nearest branch?",
-                                                 "What is the ATM withdrawal limit?"]},
+                                                 "What is the ATM withdrawal limit?"],
+     "goal": "I need 40,000 in cash today. Work out how I can get it."},
     {"label": "Cards", "questions": ["I lost my card. What should I do?",
                                      "My card is not working. What can I check?",
-                                     "Can I share my card PIN or OTP with bank staff?"]},
+                                     "Can I share my card PIN or OTP with bank staff?"],
+     "goal": "I lost my card. Block it and order a replacement."},
     {"label": "Leave policy", "questions": ["Can I take two days of leave next week?",
                                             "What is my leave balance?",
-                                            "How much notice do I need to give for leave?"]},
-    {"label": "Write an email", "questions": ["Draft an email to my manager asking for two days' leave next week.",
-                                              "Draft an email asking for an update on payment PAY-1042."]},
+                                            "How much notice do I need to give for leave?"],
+     "goal": "Check my leave balance and the notice rule, and tell me the earliest I can take two days off."},
+    {"label": "Write an email", "questions": ["Draft an email to the bank asking for an update on payment PAY-1042.",
+                                              "Draft an email to the bank reporting my missing card."],
+     "goal": "My payment PAY-1042 is stuck. Check it and draft a complaint email to the bank."},
 ]
+# In 05 each topic also offers its "goal": a request whose next step depends on what the agent finds.
 # Goals where the next step depends on what the agent finds: this is where an agent earns its extra cost.
 AGENT_GOALS = [
     "My payment PAY-1042 hasn't arrived and I need it sorted today.",
     "I lost my card while travelling. Sort it out.",
-    "Plan two days of leave next week and draft the email to my manager.",
+    "I need 40,000 in cash today. Work out how I can get it.",
 ]
 MENU_INTRO = "Choose a topic, then a question. Every bot offers the same questions, so you can compare what each level adds."
 FOLLOW_UPS = ("\n\nAfter your answer, add one final line in exactly this format: "
@@ -463,16 +469,16 @@ AUTOMATION_TASKS = {
     "payment_status": "Check the status of payment PAY-1042",
     "create_ticket": "Raise a support ticket for a failed payment",
     "card_ticket": "Raise a support ticket about my card",
-    "email_draft": "Draft an email to my manager about my leave",
+    "email_draft": "Draft an email to the bank about payment PAY-1042",
 }
 # The natural next steps after each task, so follow-ups stay on the same topic.
 NEXT_TASKS = {
-    "leave_balance": ["email_draft"],
-    "leave_policy": ["email_draft"],
-    "email_draft": ["leave_balance"],
+    "leave_balance": [],
+    "leave_policy": [],
+    "email_draft": ["payment_status"],
     "block_card": ["order_replacement_card", "card_ticket"],
     "order_replacement_card": ["card_ticket"],
-    "payment_status": ["create_ticket"],
+    "payment_status": ["create_ticket", "email_draft"],
     "create_ticket": ["payment_status"],
     "card_ticket": [],
     "search_knowledge": [],
@@ -586,7 +592,8 @@ def menu(bot: str = "basic"):
     """Topic menu for any bot. Basic sends the topic label (opens its menu branch); in AI bots a topic opens its list of shared questions."""
     if bot == "basic":
         return {"answer": BASIC_TREE["menu"]["answer"], "topics": [{"label": l, "send": l} for l in basic_options("menu") if l != "Main menu"]}
-    out = {"answer": MENU_INTRO, "topics": [{"label": t["label"], "questions": t["questions"]} for t in TOPICS]}
+    out = {"answer": MENU_INTRO, "topics": [{"label": t["label"], "questions": t["questions"],
+                                             **({"goal": t["goal"]} if bot == "agentic" else {})} for t in TOPICS]}
     if bot == "agentic":
         out["goals"] = AGENT_GOALS
     return out
@@ -767,7 +774,7 @@ def chat(b: ChatReq):
             "Decide whether any action is needed. Available actions: create_ticket (args: summary), email_draft (args: subject, body), "
             "block_card, order_replacement_card. Take an action ONLY if the user asked for it, or the goal clearly cannot be met without it "
             "(for example, a reported lost or stolen card must be blocked: propose block_card even if the user only asked what to do, because "
-            "it is never run without the user's approval, so proposing it is safe). Never raise a ticket or draft an email for a question the lookups "
+            "it is never run without the user's approval, so proposing it is safe). Never order a replacement card until the card is blocked. Never raise a ticket or draft an email for a question the lookups "
             "already answer. Stay within the user's question. Also explain honestly, in one or two plain sentences for a non-technical viewer, "
             "why this request did or did not need an agent: what depended on judging the results (choosing or skipping actions, combining "
             "several lookups, deciding the next step). If a simpler level would have been enough, say which one (03 RAG for a plain document "
@@ -820,7 +827,7 @@ def chat(b: ChatReq):
                          "End the reply by asking the user to approve it." + verify_note + " Do not add follow-up questions."
                          if held else verify_note + FOLLOW_UPS + " At least one follow-up must be an action the agent can take for the user, "
                          "phrased as a request (for example 'Block my card', 'Order a replacement card', 'Raise a support ticket', "
-                         "'Draft an email to my manager'), when one fits the topic and has not been done yet.")
+                         "'Draft an email to the bank'), when one fits the topic and has not been done yet.")
         answer = llm("You are Bluewater Bank's Agentic AI demo (a fictional bank). Write a short, clear reply to the user, under 120 words "
                      "(longer only for a drafted email). Answer only what the user asked, using only the results below. Do not mention tools, "
                      "file names, scores, plans or internal steps; the app shows them separately. If an action was taken, say what was done. "

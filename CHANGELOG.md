@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2 - 2026-11-23
+- **No more emails to a manager:** the Write an email topic now drafts customer emails to the bank (payment update, missing card) in every bot, including Basic's templates and Automation's follow-ups.
+- **One agent goal per topic in 05,** shown in gold under the topic's questions (for example Cards: "I lost my card. Block it and order a replacement."). The shared questions stay, so levels can still be compared like for like.
+- The "Goals for the agent" strip now offers: a held payment needed today, a card lost while travelling, and 40,000 in cash today (over the ATM limit).
+- The agent never orders a replacement card before the card is blocked.
+
 ## 0.8.1 - 2026-11-23
 - **Agent decision is parsed robustly:** JSON is found even when wrapped in prose, code fences or followed by extra braces; the decision step has more room (800 tokens); if it still fails, the raw reply is shown in "What this level did" for diagnosis.
 - **Lost card: the agent proposes blocking it** even when the user only asks what to do; it still waits for the user's approval.
