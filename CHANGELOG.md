@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1 - 2026-11-23
+- **Agent decision is parsed robustly:** JSON is found even when wrapped in prose, code fences or followed by extra braces; the decision step has more room (800 tokens); if it still fails, the raw reply is shown in "What this level did" for diagnosis.
+- **Lost card: the agent proposes blocking it** even when the user only asks what to do; it still waits for the user's approval.
+- **Agent follow-ups include actions** it can take (block card, order replacement, raise ticket, draft email) when they fit.
+- **Agent goals stay visible:** a "Goals for the agent" strip sits above the message box in 05 for the whole chat, instead of only on the welcome screen.
+
 ## 0.8.0 - 2026-11-23
 - **Agentic AI shows Plan -> Act -> Verify on every answer** as a visible three-step strip, in plain language.
 - **"Why an agent here"** note on each answer, written by the agent's decision step; it honestly says when a simpler level (03 RAG or 04 Automation) would have been enough.

@@ -19,7 +19,7 @@ ENV_FILE = Path(os.getenv("CHATBOT_ENV", str(ROOT / ".env")))      # override fo
 KD = ROOT / "knowledge"
 MODELS = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"]
 MAX_TOKENS = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1500"))  # cap for answers the user reads
-JSON_MAX_TOKENS = 500  # cap for short internal JSON steps (agent plan and decision)
+JSON_MAX_TOKENS = 800  # cap for short internal JSON steps (agent plan and decision)
 HISTORY_MESSAGES = int(os.getenv("CHATBOT_HISTORY_MESSAGES", "8"))  # only the most recent turns are re-sent to Claude
 
 
@@ -410,9 +410,18 @@ def tool(name, args):
 
 
 def parse_json(text):
-    """Pull the first {...} object out of a reply, even if wrapped in prose or code fences."""
-    m = re.search(r"\{.*\}", text, re.S)
-    return json.loads(m.group(0)) if m else json.loads(text)
+    """Find the first complete JSON object in a reply, even if wrapped in prose or code fences,
+    or followed by extra text that contains braces."""
+    dec = json.JSONDecoder()
+    for i, ch in enumerate(text):
+        if ch == "{":
+            try:
+                obj, _ = dec.raw_decode(text[i:])
+                if isinstance(obj, dict):
+                    return obj
+            except ValueError:
+                continue
+    raise ValueError("no JSON object found")
 
 
 def payment_ref(text):
@@ -757,17 +766,20 @@ def chat(b: ChatReq):
             "You are Bluewater Bank's Agentic AI demo. Below are the user's goal and what the read-only lookups returned. "
             "Decide whether any action is needed. Available actions: create_ticket (args: summary), email_draft (args: subject, body), "
             "block_card, order_replacement_card. Take an action ONLY if the user asked for it, or the goal clearly cannot be met without it "
-            "(for example, a reported lost or stolen card must be blocked). Never raise a ticket or draft an email for a question the lookups "
+            "(for example, a reported lost or stolen card must be blocked: propose block_card even if the user only asked what to do, because "
+            "it is never run without the user's approval, so proposing it is safe). Never raise a ticket or draft an email for a question the lookups "
             "already answer. Stay within the user's question. Also explain honestly, in one or two plain sentences for a non-technical viewer, "
             "why this request did or did not need an agent: what depended on judging the results (choosing or skipping actions, combining "
             "several lookups, deciding the next step). If a simpler level would have been enough, say which one (03 RAG for a plain document "
             "question, 04 Automation for a fixed task). Return the decision as JSON only, with no other text: "
-            "{\"actions\":[{\"name\":\"...\",\"args\":{},\"reason\":\"...\"}],\"why_agent\":\"...\"}"
+            "{\"actions\":[{\"name\":\"...\",\"args\":{},\"reason\":\"...\"}],\"why_agent\":\"...\"}. Keep each reason and why_agent short, "
+            "and use plain double-quoted JSON strings with no line breaks inside them."
             "\n\nGoal: " + goal + "\n\nLookup results:\n" + json.dumps(observed), msgs, JSON_MAX_TOKENS, "decide")
         try:
             decision = parse_json(decision_raw)
         except Exception:
             decision = {"actions": [], "why_agent": "The agent's decision could not be read, so it safely took no action."}
+            meta["decision_raw"] = decision_raw[:600]  # shown in the panel so a failure can be diagnosed
         acted, held, reasons = [], [], []
         for item in (decision.get("actions") or [])[:2]:
             name = item.get("name") if isinstance(item, dict) else None
@@ -806,7 +818,9 @@ def chat(b: ChatReq):
                        "VERIFY: <met|partly|not met> | <one short sentence saying why>.")
         approval_note = (f" One step was NOT run because it cannot be undone: {NEEDS_APPROVAL[held[0]]}. "
                          "End the reply by asking the user to approve it." + verify_note + " Do not add follow-up questions."
-                         if held else verify_note + FOLLOW_UPS + " Only suggest follow-ups the available tools can handle.")
+                         if held else verify_note + FOLLOW_UPS + " At least one follow-up must be an action the agent can take for the user, "
+                         "phrased as a request (for example 'Block my card', 'Order a replacement card', 'Raise a support ticket', "
+                         "'Draft an email to my manager'), when one fits the topic and has not been done yet.")
         answer = llm("You are Bluewater Bank's Agentic AI demo (a fictional bank). Write a short, clear reply to the user, under 120 words "
                      "(longer only for a drafted email). Answer only what the user asked, using only the results below. Do not mention tools, "
                      "file names, scores, plans or internal steps; the app shows them separately. If an action was taken, say what was done. "

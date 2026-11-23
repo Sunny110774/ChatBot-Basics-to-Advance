@@ -421,3 +421,20 @@ def test_agent_goals_on_welcome(env):
     _, client, _ = env
     assert len(client.get("/api/menu?bot=agentic").json()["goals"]) == 3
     assert "goals" not in client.get("/api/menu?bot=rag").json()
+
+
+def test_parse_json_handles_prose_fences_and_trailing_braces(env):
+    app, _, _ = env
+    assert app.parse_json('Sure:\n```json\n{"actions": [], "why_agent": "x"}\n```\nNote: {not json}') == {"actions": [], "why_agent": "x"}
+    assert app.parse_json('{bad} then {"a": 1}') == {"a": 1}
+
+
+def test_agent_proposes_card_block_for_lost_card_question(env, monkeypatch):
+    app, client, calls = env
+    agent = ScriptedAgent(calls, {"goal": "Lost card", "plan": ["Look up", "Decide"], "lookups": [{"name": "search_knowledge", "args": {"query": "lost card"}}]},
+                          {"actions": [{"name": "block_card", "reason": "card reported lost"}], "why_agent": "Needed to judge an action."})
+    monkeypatch.setattr(app.anthropic, "Anthropic", lambda **kw: types.SimpleNamespace(messages=agent))
+    _, r = ask(client, "agentic", "I lost my card. What should I do?")
+    meta = r.json()["metadata"]
+    assert meta["awaiting"] == "block_card" and meta["options"] == ["Yes, block the card", "No, keep it active"]
+    assert "propose block_card even if the user only asked what to do" in calls[1]["system"]
