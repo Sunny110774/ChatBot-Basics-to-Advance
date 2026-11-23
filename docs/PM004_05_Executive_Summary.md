@@ -54,6 +54,21 @@ Every conversation is saved, demo tools never touch real systems, and a test sui
 
 **Not built yet (next for any live use):** prompt-injection checks on document text, masking of personal data before it reaches the model, moderation of inputs and outputs, and an automated evaluation set.
 
+### Token optimisation
+
+**Every Claude call is paid by the token, so the app calls Claude only when it must, keeps answers short and measures the cost of every answer.**
+
+| Technique | What it saves |
+| --- | --- |
+| No model call when rules or data can answer (Basic, approval prompts, "nothing found" replies) | Whole calls |
+| Only the top 3 relevant passages are sent; weak matches are dropped | Input tokens |
+| Only the last 8 messages are re-sent each turn | Input tokens as chats grow |
+| Output caps: 800 tokens for the agent's internal steps, 1,500 for answers | Output tokens |
+| Follow-up suggestions and the agent's goal check ride in the same reply | Extra calls |
+| Calls and input/output tokens shown under every answer | Makes cost visible and measurable |
+
+**Measured on 23 Nov 2026 with Claude Sonnet 5.5:** about USD 0 per question for Basic, 0.002 for Automation, 0.0045 for RAG, 0.008 for Generative AI and 0.014 for the agent. Output tokens were 84% of the cost, so shorter answers save the most. The daily caps keep the worst case under about USD 3.70 a day. Full detail and a checklist for every project: [PM004_07 Token Optimisation](PM004_07_Token_Optimisation.md).
+
 ## 3. Business cases by level
 
 Each level pays off for a different kind of problem. The business cases below are illustrative and show where the value comes from and which measure it moves.

@@ -136,7 +136,7 @@ Results vary slightly between runs for modes 02 to 05.
 | Change the model | `ANTHROPIC_MODEL` in `.env` | Restart |
 | Run the tests | `pip install -r requirements-dev.txt` then `pytest` | No key or internet needed |
 
-**Guardrails**
+### 7.1 Guardrails
 
 **Guardrails are built in, enforced in code and covered by tests; they are not left to the prompt alone.** These are the controls that keep a live AI system safe, grounded and affordable.
 
@@ -152,6 +152,23 @@ Results vary slightly between runs for modes 02 to 05.
 | Transparency | "What this level did" shows sources, tools, decision, checks and cost for every answer |
 
 **Not built yet (next for any live use):** prompt-injection checks on document text, masking of personal data before it reaches the model, moderation of inputs and outputs, and an automated evaluation set.
+
+### 7.2 Token optimisation
+
+**Every Claude call is paid by the token, so the app calls Claude only when it must, keeps answers short and measures the cost of every answer.**
+
+| Technique | What it saves |
+| --- | --- |
+| No model call when rules or data can answer (Basic, approval prompts, "nothing found" replies) | Whole calls |
+| Only the top 3 relevant passages are sent; weak matches are dropped | Input tokens |
+| Only the last 8 messages are re-sent each turn | Input tokens as chats grow |
+| Output caps: 800 tokens for the agent's internal steps, 1,500 for answers | Output tokens |
+| Follow-up suggestions and the agent's goal check ride in the same reply | Extra calls |
+| Calls and input/output tokens shown under every answer | Makes cost visible and measurable |
+
+**Measured on 23 Nov 2026 with Claude Sonnet 5.5:** about USD 0 per question for Basic, 0.002 for Automation, 0.0045 for RAG, 0.008 for Generative AI and 0.014 for the agent. Output tokens were 84% of the cost, so shorter answers save the most. The daily caps keep the worst case under about USD 3.70 a day. Full detail and a checklist for every project: [PM004_07 Token Optimisation](PM004_07_Token_Optimisation.md).
+
+**How to check cost:** open "What this level did" under any answer; the Cost line shows Claude calls and tokens per step. Daily caps are set by `CHATBOT_DAILY_CLAUDE_CALLS` and `CHATBOT_VISITOR_DAILY_CALLS` (section 8).
 
 **Safety rules**
 - Demo data only; never paste real client, payment or personal data.
