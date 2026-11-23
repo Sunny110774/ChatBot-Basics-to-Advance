@@ -7,7 +7,7 @@
 - **Vision:** One working app where the same question goes through five chatbot types (Basic, Generative AI, RAG, AI Automation, Agentic AI), so anyone can see what each level adds and when it is worth using.
 - **Objectives:** (1) all five types answer live questions on Claude and save every conversation in the history panel; (2) one shared set of business scenarios is run through all five and the differences recorded; (3) a short learning module explains where each type fits.
 - **MVP:** the prototype running on Claude, five modes working, history saved, scenario set run end to end.
-- **Key date:** started 22 Nov 2026; target completion [TBC].
+- **Key date:** started 22 Nov 2026; released 23 Nov 2026 (v1.0.0); sharing from 24 Nov 2026.
 
 The guiding idea: more AI does not automatically mean better AI. Start with the business requirement, then choose the minimum capability needed.
 
@@ -25,7 +25,7 @@ PM004 turns the "ChatBot - Basics to Advance" prototype into five working chatbo
 | Organisation | Learning with Naveen |
 | Version and status | v0.2, Draft |
 | Planned start | 22 Nov 2026 |
-| Planned end | [TBC] |
+| Planned end | 23 Nov 2026 for build and release (actual); sharing from 24 Nov 2026 |
 | Working base | This repository (FastAPI, SQLite, Claude) |
 
 ## 2. Problem statement and pain points
@@ -253,7 +253,7 @@ The demo already contains the employee side as mock tools (leave balance, leave 
 
 ## 7. Phased delivery plan and milestones
 
-Delivery runs in five proposed phases; Phase 0 finished on 22 Nov 2026 and the remaining dates are [TBC] until the project plan (PM004_03) is drafted.
+Delivery runs in five phases. Phases 0 to 2 finished by 23 Nov 2026; gate results are in PM004_02 (Lifecycle Framework) and the schedule in PM004_03 (Project Plan).
 
 ![Roadmap](images/roadmap.png)
 
@@ -318,13 +318,13 @@ Decision at the end of each phase: G1 decides whether the levels already look di
 
 | Cost line | Estimate | Needed to estimate |
 | --- | --- | --- |
-| Anthropic API usage (modes 02 to 05) | [TBC] | Tokens per scenario run x number of runs |
-| Hosting for a shareable demo (backlog) | [TBC] | Decision on whether to host |
+| Anthropic API usage (modes 02 to 05) | Measured 23 Nov 2026: about USD 0.0045 per RAG question and USD 0.014 per agent question; at most about USD 3.70 a day with the caps (PM004_07, PM004_03) | Monthly actual from the Anthropic console |
+| Hosting for a shareable demo | USD 0: Render free plan, UAT and Prod (live 23 Nov 2026) | None |
 | Software (Python, FastAPI, SQLite) | No licence cost | None |
 
 **Open items**
 - [x] Run the app with a live Anthropic key and confirm all 5 modes (23 Nov 2026)
-- [ ] Agree the scenario set and its size
+- [x] Agree the scenario set and its size: 3 shared questions, 1 approval check, 3 agent goals (PM004_10, 23 Nov 2026)
 - [ ] Set gate thresholds after the first scenario run
 - [ ] Set an API spend limit
-- [ ] Create the PM004_03 project plan
+- [x] Create the PM004_03 project plan (23 Nov 2026)

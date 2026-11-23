@@ -116,9 +116,12 @@ Start with the executive summary; each document opens with its main point in one
 | --- | --- |
 | [PM004_05 Executive Summary](docs/PM004_05_Executive_Summary.md) | One page: the problem, what was built, business cases for each level, how to choose, status, my role |
 | [PM004_01 Project Charter](docs/PM004_01_Project_Charter.md) | Problem, objectives, scope, the five levels with real-world examples, architecture, phases and gates, risks |
+| [PM004_02 Lifecycle Framework](docs/PM004_02_Lifecycle_Framework.md) | Six stages per phase and release, gate results G0 to G4, UAT-then-Prod release flow, document register |
+| [PM004_03 Project Plan](docs/PM004_03_Project_Plan.md) | WBS, schedule with actual dates and critical path, cost, quality plan, risk heat map, baseline |
 | [PM004_06 Workflows](docs/PM004_06_Workflows.md) | Functional (user view) and technical workflows, error and safety paths, API and data |
-| [PM004_07 Token Optimisation](docs/PM004_07_Token_Optimisation.md) | Where the tokens go, ten techniques used here, what to add at scale, and a checklist for every project |
+| [PM004_07 Token Optimisation](docs/PM004_07_Token_Optimisation.md) | Where the tokens go, ten techniques used here, measured cost per level, what to add at scale, and a checklist for every project |
 | [PM004_09 Presentation (PDF)](docs/PM004_09_Presentation.pdf) | 9-slide overview: the problem, one slide per level (how it works, best for, watch out, cost), how to choose, built for live use |
+| [PM004_10 Evaluation](docs/PM004_10_Evaluation.md) | Live run of the same questions through all five levels: answers, defects, tokens, cost and time |
 | [PM004_04 Runbook](docs/PM004_04_Runbook.md) | Setup, daily use, demo script, troubleshooting, extending safely |
 | [Changelog](CHANGELOG.md) | What changed and when |
 
