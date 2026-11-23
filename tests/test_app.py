@@ -332,3 +332,10 @@ def test_agent_never_blocks_a_card_without_approval(env, monkeypatch):
     assert meta["options"][0] == "Yes, block the card"
     _, r = ask(client, "agentic", "yes", cid)
     assert r.json()["metadata"]["approved"] == ["block_card"]
+
+
+def test_weak_matches_are_dropped(env):
+    app, _, _ = env
+    hits = app.retrieve("Can I share my card PIN or OTP with bank staff?")
+    assert [h["source"] for h in hits] == ["cards.md"]  # 'PIN code' (postal code) and 'the PIN is correct' are not relevant
+    assert [h["source"] for h in app.retrieve("I lost my card. What should I do?")] == ["cards.md"]

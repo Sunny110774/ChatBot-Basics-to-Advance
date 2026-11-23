@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3 - 2026-11-23
+- **Weak matches dropped from search:** the knowledge search keeps only passages scoring more than half as well as the best match. A question about sharing a card PIN no longer pulls in "PIN code" (postal code) from the branch passage. Applies to RAG, Automation and Agentic.
+- **Automation summaries use only relevant results** and no longer list "lower-relevance" passages.
+
 ## 0.6.2 - 2026-11-22
 - **Topics open a question list:** clicking a topic (for example **Cards**) in bots 02 to 05 now shows two or three questions to choose from, instead of sending a question on the user's behalf. Nothing is sent until the user picks. The questions are the same in every bot, so answers stay comparable.
 - Each question was checked to retrieve its matching knowledge passage for RAG.

@@ -321,8 +321,12 @@ def words(text):
     return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOPWORDS and len(w) > 1}
 
 
+MIN_RELATIVE_SCORE = 0.5  # drop weak matches: keep passages scoring more than half as well as the best one
+
+
 def retrieve(q, k=3):
-    """Rank blank-line-separated chunks by how many of the question's content words they contain."""
+    """Rank blank-line-separated chunks by how many of the question's content words they contain.
+    Weak matches (one shared word, e.g. 'PIN' in 'PIN code') are dropped so they never reach the answer."""
     terms = words(q)
     hits = []
     if not terms:
@@ -334,8 +338,10 @@ def retrieve(q, k=3):
                 continue
             score = len(terms & words(chunk)) / len(terms)
             if score > 0:
-                hits.append({"score": round(score, 3), "source": f.name, "text": chunk})
-    return sorted(hits, key=lambda x: x["score"], reverse=True)[:k]
+                hits.append({"score": score, "source": f.name, "text": chunk})
+    hits = sorted(hits, key=lambda x: x["score"], reverse=True)
+    keep = [h for h in hits if h is hits[0] or h["score"] > hits[0]["score"] * MIN_RELATIVE_SCORE][:k]
+    return [dict(h, score=round(h["score"], 3)) for h in keep]
 
 
 def doc_title(filename):
@@ -651,6 +657,7 @@ def chat(b: ChatReq):
             meta["tools"] = results
             answer = llm("You are Bluewater Bank's AI Automation demo. Summarise these tool results for the user, faithfully. "
                          "Say clearly that the data is mock demo data and that nothing in a real system was changed. "
+                         "Use only results that answer the user's question and ignore the rest without mentioning them. "
                          "Do not ask a question or offer any further action; the app shows the next steps as buttons.\n\nTools:\n" + json.dumps(results), msgs)
             meta["did"] = "Fixed rules chose the tools from keywords in your message, ran them, then Claude summarised the results."
             done = {r["tool"] for r in results}
